@@ -10,27 +10,27 @@
 # ============================================================
 
 type: object
-description: Dữ liệu gửi lên để tạo công việc mới
 required:
   - title
 properties:
   title:
     type: string
-    minLength: 1
-    maxLength: 255
     description: Tiêu đề công việc
-    example: Soạn thảo tài liệu đặc tả OpenAPI
+    minLength: 1
+    maxLength: 200
+    example: "Viết đặc tả OpenAPI cho Task API"
   status:
-    $ref: './TaskStatus.yaml'
+    description: Trạng thái ban đầu của công việc
+    $ref: "./TaskStatus.yaml"
   priority:
-    $ref: './TaskPriority.yaml'
+    description: Mức độ ưu tiên của công việc
+    $ref: "./TaskPriority.yaml"
   dueDate:
     type: string
     format: date
-    description: Hạn hoàn thành (YYYY-MM-DD)
-    example: '2026-10-20'
+    description: Hạn hoàn thành công việc (YYYY-MM-DD)
+    example: "2026-10-25"
   assigneeId:
     type: string
-    format: uuid
-    description: UUID người được giao việc
-    example: 123e4567-e89b-12d3-a456-426614174001
+    description: ID định danh người được giao việc
+    example: "user-02"
