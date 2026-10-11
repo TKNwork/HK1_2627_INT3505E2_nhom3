@@ -10,7 +10,7 @@
 # ============================================================
 
 type: object
-description: Dữ liệu cập nhật một phần công việc
+description: Dữ liệu gửi lên để cập nhật một phần công việc (chỉ gửi các trường cần thay đổi)
 minProperties: 1
 properties:
   title:
@@ -18,7 +18,7 @@ properties:
     minLength: 1
     maxLength: 255
     description: Tiêu đề công việc mới
-    example: Cập nhật tài liệu thiết kế API
+    example: Cập nhật tài liệu thiết kế API và kiểm thử
   status:
     $ref: './TaskStatus.yaml'
   priority:
@@ -26,10 +26,16 @@ properties:
   dueDate:
     type: string
     format: date
-    description: Hạn hoàn thành mới (YYYY-MM-DD)
+    description: Hạn hoàn thành mới (định dạng YYYY-MM-DD)
     example: '2026-10-25'
   assigneeId:
     type: string
     format: uuid
-    description: UUID người được giao việc mới
+    nullable: true
+    description: UUID của người được phân công xử lý mới
     example: 123e4567-e89b-12d3-a456-426614174002
+example:
+  title: Cập nhật tài liệu thiết kế API và kiểm thử
+  status: in_progress
+  priority: high
+  dueDate: '2026-10-25'
