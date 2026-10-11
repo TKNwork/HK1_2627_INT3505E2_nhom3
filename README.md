@@ -17,10 +17,10 @@ API hỗ trợ cơ chế xác thực toàn cục bằng **Bearer Token (JWT)** v
 | STT | Phương thức | Đường dẫn URI | Tóm tắt chức năng | Người phụ trách | Trạng thái hiện tại |
 | :-: | :---: | :--- | :--- | :--- | :--- |
 | 1 | `GET` | `/tasks` | Lấy danh sách công việc (phân trang & lọc) | **Nhóm trưởng** | ✅ Đã hoàn thành |
-| 2 | `POST` | `/tasks` | Tạo mới công việc | **Thành viên 2** | 🟡 Đã dựng khung (Chờ PR) |
-| 3 | `GET` | `/tasks/{taskId}` | Lấy chi tiết một công việc theo ID | **Thành viên 3** | 🟡 Đã dựng khung (Chờ PR) |
-| 4 | `PATCH` | `/tasks/{taskId}` | Cập nhật một phần thông tin công việc | **Thành viên 3** | 🟡 Đã dựng khung (Chờ PR) |
-| 5 | `DELETE` | `/tasks/{taskId}` | Xóa công việc theo ID | **Thành viên 4** | 🟡 Đã dựng khung (Chờ PR) |
+| 2 | `POST` | `/tasks` | Tạo mới công việc | **Thành viên 2** | ✅ Đã hoàn thành (PR #1) |
+| 3 | `GET` | `/tasks/{taskId}` | Lấy chi tiết một công việc theo ID | **Thành viên 3** | ✅ Đã hoàn thành (PR #3) |
+| 4 | `PATCH` | `/tasks/{taskId}` | Cập nhật một phần thông tin công việc | **Thành viên 3** | ✅ Đã hoàn thành (PR #3) |
+| 5 | `DELETE` | `/tasks/{taskId}` | Xóa công việc theo ID | **Thành viên 4** | ✅ Đã hoàn thành (PR #2) |
 
 ---
 
