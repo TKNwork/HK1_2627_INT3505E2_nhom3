@@ -1,0 +1,28 @@
+openapi: 3.0.3
+
+info:
+  title: Tasks API
+  version: 1.0.0
+  description: API quản lý công việc - Nhóm 3
+
+servers:
+  - url: http://localhost:5000/v1
+
+tags:
+  - name: tasks
+    description: Quản lý công việc
+
+paths: {}
+
+components:
+  schemas: {}
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+
