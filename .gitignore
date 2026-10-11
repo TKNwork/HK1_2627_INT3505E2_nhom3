@@ -1,0 +1,23 @@
+# Node & Package Managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Bundle & Dist outputs
+dist/
+*.bundled.yaml
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary / Scratch
+*.tmp
+*.log

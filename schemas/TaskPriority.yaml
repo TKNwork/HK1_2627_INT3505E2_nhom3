@@ -1,0 +1,7 @@
+type: string
+description: Mức độ ưu tiên của công việc
+enum:
+  - low
+  - normal
+  - high
+example: normal

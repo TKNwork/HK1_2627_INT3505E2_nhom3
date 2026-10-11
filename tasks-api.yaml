@@ -3,26 +3,48 @@ openapi: 3.0.3
 info:
   title: Tasks API
   version: 1.0.0
-  description: API quản lý công việc - Nhóm 3
+  description: API quản lý công việc - Nhóm 3 (Môn Kiến trúc Hướng Dịch vụ - SOA)
+  contact:
+    name: Nhóm 3 - INT3505E2
+    url: https://github.com/TKNwork/HK1_2627_INT3505E2_nhom3
 
 servers:
   - url: http://localhost:5000/v1
+    description: Môi trường phát triển cục bộ (Local Development)
+
+security:
+  - bearerAuth: []
 
 tags:
   - name: tasks
-    description: Quản lý công việc
+    description: Các thao tác quản lý vòng đời công việc
 
-paths: {}
+paths:
+  /tasks:
+    $ref: './paths/tasks.yaml'
+  /tasks/{taskId}:
+    $ref: './paths/tasks-id.yaml'
 
 components:
-  schemas: {}
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: Nhập JSON Web Token (JWT) theo định dạng Bearer <token>
 
-security:
-  - bearerAuth: []
-
-
+  schemas:
+    Task:
+      $ref: './schemas/Task.yaml'
+    TaskStatus:
+      $ref: './schemas/TaskStatus.yaml'
+    TaskPriority:
+      $ref: './schemas/TaskPriority.yaml'
+    TaskPage:
+      $ref: './schemas/TaskPage.yaml'
+    CreateTaskInput:
+      $ref: './schemas/CreateTaskInput.yaml'
+    UpdateTaskInput:
+      $ref: './schemas/UpdateTaskInput.yaml'
+    Error:
+      $ref: './schemas/Error.yaml'

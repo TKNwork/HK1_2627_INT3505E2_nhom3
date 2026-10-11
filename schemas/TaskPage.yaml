@@ -1,0 +1,28 @@
+type: object
+description: Cấu trúc phân trang danh sách công việc
+required:
+  - items
+  - total
+  - limit
+  - offset
+properties:
+  items:
+    type: array
+    description: Danh sách các công việc trên trang hiện tại
+    items:
+      $ref: './Task.yaml'
+  total:
+    type: integer
+    minimum: 0
+    description: Tổng số lượng công việc thỏa mãn điều kiện lọc
+    example: 42
+  limit:
+    type: integer
+    minimum: 1
+    description: Số lượng phần tử tối đa trên một trang
+    example: 20
+  offset:
+    type: integer
+    minimum: 0
+    description: Số lượng phần tử đã bỏ qua từ đầu danh sách
+    example: 0

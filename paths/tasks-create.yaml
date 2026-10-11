@@ -1,0 +1,42 @@
+# ============================================================
+# PHÂN CÔNG: THÀNH VIÊN 2
+# NHIỆM VỤ: Hoàn thiện endpoint POST /tasks (Tạo công việc mới)
+# NHÁNH LÀM VIỆC: feature/create-task
+# ============================================================
+# TODO (Thành viên 2):
+# - Kiểm tra thông tin summary, description, operationId (createTask).
+# - Kiểm tra requestBody tham chiếu đến schemas/CreateTaskInput.yaml.
+# - Rà soát responses: 201 (Task), 401 (Error), 422 (Error).
+# ============================================================
+
+tags:
+  - tasks
+summary: Tạo công việc mới
+description: Tạo một công việc mới trong hệ thống dựa trên thông tin gửi lên trong body.
+operationId: createTask
+requestBody:
+  required: true
+  description: Thông tin khởi tạo công việc
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/CreateTaskInput.yaml'
+responses:
+  '201':
+    description: Công việc được tạo thành công
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Task.yaml'
+  '401':
+    description: Thiếu hoặc token xác thực Bearer không hợp lệ
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'
+  '422':
+    description: Dữ liệu đầu vào không hợp lệ (lỗi validation)
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'

@@ -1,0 +1,54 @@
+# ============================================================
+# PATH ITEM: /tasks
+# GET: Do Nhóm trưởng phụ trách hoàn thiện
+# POST: Tham chiếu đến paths/tasks-create.yaml (Thành viên 2 phụ trách)
+# ============================================================
+
+get:
+  tags:
+    - tasks
+  summary: Lấy danh sách công việc
+  description: Trả về danh sách công việc có hỗ trợ phân trang (limit, offset) và lọc theo trạng thái (status).
+  operationId: listTasks
+  parameters:
+    - name: limit
+      in: query
+      description: Số lượng công việc tối đa trên một trang
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
+    - name: offset
+      in: query
+      description: Số lượng bản ghi cần bỏ qua từ đầu danh sách
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+        example: 0
+    - name: status
+      in: query
+      description: Lọc danh sách công việc theo trạng thái
+      required: false
+      schema:
+        $ref: '../schemas/TaskStatus.yaml'
+  responses:
+    '200':
+      description: Lấy danh sách công việc thành công
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/TaskPage.yaml'
+    '401':
+      description: Thiếu hoặc token xác thực Bearer không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+
+post:
+  $ref: './tasks-create.yaml'

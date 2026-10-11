@@ -1,0 +1,35 @@
+# ============================================================
+# PHÂN CÔNG: THÀNH VIÊN 3
+# NHIỆM VỤ: Định nghĩa payload cập nhật một phần công việc (PATCH /tasks/{taskId})
+# NHÁNH: feature/get-update-task
+# ============================================================
+# TODO (Thành viên 3):
+# - Đảm bảo minProperties: 1 (phải có ít nhất một trường cần cập nhật).
+# - Các thuộc tính là tùy chọn (optional), không đặt required.
+# - Xác thực các trường: title, status, priority, dueDate, assigneeId.
+# ============================================================
+
+type: object
+description: Dữ liệu cập nhật một phần công việc
+minProperties: 1
+properties:
+  title:
+    type: string
+    minLength: 1
+    maxLength: 255
+    description: Tiêu đề công việc mới
+    example: Cập nhật tài liệu thiết kế API
+  status:
+    $ref: './TaskStatus.yaml'
+  priority:
+    $ref: './TaskPriority.yaml'
+  dueDate:
+    type: string
+    format: date
+    description: Hạn hoàn thành mới (YYYY-MM-DD)
+    example: '2026-10-25'
+  assigneeId:
+    type: string
+    format: uuid
+    description: UUID người được giao việc mới
+    example: 123e4567-e89b-12d3-a456-426614174002

@@ -1,0 +1,25 @@
+# ============================================================
+# PATH ITEM: /tasks/{taskId}
+# Quản lý chi tiết (GET), cập nhật (PATCH), xóa (DELETE) công việc theo ID
+# GET & PATCH: Do Thành viên 3 phụ trách (paths/tasks-detail.yaml & paths/tasks-update.yaml)
+# DELETE: Do Thành viên 4 phụ trách (paths/tasks-delete.yaml)
+# ============================================================
+
+parameters:
+  - name: taskId
+    in: path
+    required: true
+    description: UUID định danh duy nhất của công việc
+    schema:
+      type: string
+      format: uuid
+      example: 123e4567-e89b-12d3-a456-426614174000
+
+get:
+  $ref: './tasks-detail.yaml'
+
+patch:
+  $ref: './tasks-update.yaml'
+
+delete:
+  $ref: './tasks-delete.yaml'

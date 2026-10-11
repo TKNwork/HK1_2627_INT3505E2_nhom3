@@ -1,0 +1,36 @@
+# ============================================================
+# PHÂN CÔNG: THÀNH VIÊN 2
+# NHIỆM VỤ: Định nghĩa dữ liệu đầu vào khi tạo mới công việc (POST /tasks)
+# NHÁNH: feature/create-task
+# ============================================================
+# TODO (Thành viên 2):
+# - Kiểm tra và hoàn thiện các ràng buộc validation (minLength, maxLength, format).
+# - Xác định trường bắt buộc (required: [title]).
+# - Đảm bảo tham chiếu đúng TaskStatus.yaml và TaskPriority.yaml.
+# ============================================================
+
+type: object
+description: Dữ liệu gửi lên để tạo công việc mới
+required:
+  - title
+properties:
+  title:
+    type: string
+    minLength: 1
+    maxLength: 255
+    description: Tiêu đề công việc
+    example: Soạn thảo tài liệu đặc tả OpenAPI
+  status:
+    $ref: './TaskStatus.yaml'
+  priority:
+    $ref: './TaskPriority.yaml'
+  dueDate:
+    type: string
+    format: date
+    description: Hạn hoàn thành (YYYY-MM-DD)
+    example: '2026-10-20'
+  assigneeId:
+    type: string
+    format: uuid
+    description: UUID người được giao việc
+    example: 123e4567-e89b-12d3-a456-426614174001

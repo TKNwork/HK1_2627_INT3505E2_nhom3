@@ -1,0 +1,34 @@
+# ============================================================
+# PHÂN CÔNG: THÀNH VIÊN 3
+# NHIỆM VỤ: Hoàn thiện endpoint GET /tasks/{taskId} (Lấy chi tiết công việc)
+# NHÁNH LÀM VIỆC: feature/get-update-task
+# ============================================================
+# TODO (Thành viên 3):
+# - Kiểm tra summary, description, operationId (getTaskById).
+# - Cấu hình responses: 200 (Task), 401 (Error), 404 (Error).
+# ============================================================
+
+tags:
+  - tasks
+summary: Lấy chi tiết công việc
+description: Trả về thông tin chi tiết của một công việc cụ thể dựa vào taskId.
+operationId: getTaskById
+responses:
+  '200':
+    description: Lấy chi tiết công việc thành công
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Task.yaml'
+  '401':
+    description: Thiếu hoặc token xác thực Bearer không hợp lệ
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'
+  '404':
+    description: Không tìm thấy công việc tương ứng với taskId
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'

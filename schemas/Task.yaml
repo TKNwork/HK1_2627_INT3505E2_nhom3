@@ -1,0 +1,35 @@
+type: object
+description: Thực thể công việc (Task entity) trong hệ thống
+required:
+  - id
+  - title
+  - status
+  - priority
+properties:
+  id:
+    type: string
+    format: uuid
+    readOnly: true
+    description: Định danh duy nhất (UUID) của công việc do hệ thống tự sinh
+    example: 123e4567-e89b-12d3-a456-426614174000
+  title:
+    type: string
+    minLength: 1
+    maxLength: 255
+    description: Tiêu đề hoặc tên ngắn gọn của công việc
+    example: Hoàn thành thiết kế OpenAPI Tasks API
+  status:
+    $ref: './TaskStatus.yaml'
+  priority:
+    $ref: './TaskPriority.yaml'
+  dueDate:
+    type: string
+    format: date
+    description: Hạn hoàn thành công việc theo chuẩn ISO 8601 (YYYY-MM-DD)
+    example: '2026-10-20'
+  assigneeId:
+    type: string
+    format: uuid
+    nullable: true
+    description: UUID của thành viên được phân công xử lý công việc
+    example: 123e4567-e89b-12d3-a456-426614174001

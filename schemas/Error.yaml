@@ -1,0 +1,25 @@
+# ============================================================
+# PHÂN CÔNG: THÀNH VIÊN 4
+# NHIỆM VỤ: Định nghĩa schema Error model chuẩn dùng chung cho các lỗi HTTP (401, 404, 422, ...)
+# NHÁNH: feature/delete-task
+# ============================================================
+# TODO (Thành viên 4):
+# - Định nghĩa schema object cho lỗi hệ thống trả về.
+# - Ràng buộc required: [code, message].
+# - Bổ sung các ví dụ cụ thể cho mã lỗi phổ biến.
+# ============================================================
+
+type: object
+description: Mô hình thông báo lỗi chuẩn của API
+required:
+  - code
+  - message
+properties:
+  code:
+    type: string
+    description: Mã định danh lỗi (chuỗi ký tự viết hoa)
+    example: NOT_FOUND
+  message:
+    type: string
+    description: Thông điệp mô tả chi tiết lỗi cho client
+    example: Không tìm thấy công việc với taskId đã cung cấp

@@ -1,0 +1,48 @@
+# ============================================================
+# PHÂN CÔNG: THÀNH VIÊN 3
+# NHIỆM VỤ: Hoàn thiện endpoint PATCH /tasks/{taskId} (Cập nhật một phần công việc)
+# NHÁNH LÀM VIỆC: feature/get-update-task
+# ============================================================
+# TODO (Thành viên 3):
+# - Kiểm tra summary, description, operationId (patchTask).
+# - Cấu hình requestBody tham chiếu đến schemas/UpdateTaskInput.yaml.
+# - Rà soát responses: 200 (Task), 401 (Error), 404 (Error), 422 (Error).
+# ============================================================
+
+tags:
+  - tasks
+summary: Cập nhật một phần công việc
+description: Cập nhật một hoặc một số trường thông tin của công việc dựa vào taskId.
+operationId: patchTask
+requestBody:
+  required: true
+  description: Các trường thông tin cần cập nhật
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/UpdateTaskInput.yaml'
+responses:
+  '200':
+    description: Cập nhật công việc thành công
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Task.yaml'
+  '401':
+    description: Thiếu hoặc token xác thực Bearer không hợp lệ
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'
+  '404':
+    description: Không tìm thấy công việc tương ứng với taskId
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'
+  '422':
+    description: Dữ liệu gửi lên không hợp lệ (lỗi validation)
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'

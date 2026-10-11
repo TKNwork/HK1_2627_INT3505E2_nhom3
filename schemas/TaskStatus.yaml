@@ -1,0 +1,7 @@
+type: string
+description: Trạng thái hiện tại của công việc
+enum:
+  - todo
+  - in_progress
+  - done
+example: todo

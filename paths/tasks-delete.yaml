@@ -1,0 +1,34 @@
+# ============================================================
+# PHÂN CÔNG: THÀNH VIÊN 4
+# NHIỆM VỤ: Hoàn thiện endpoint DELETE /tasks/{taskId} (Xóa công việc)
+# NHÁNH LÀM VIỆC: feature/delete-task
+# ============================================================
+# TODO (Thành viên 4):
+# - Kiểm tra summary, description, operationId (deleteTask).
+# - Cấu hình responses:
+#   - 204: No Content (không có body trả về).
+#   - 401: Unauthorized -> $ref: '../schemas/Error.yaml'.
+#   - 404: NotFound -> $ref: '../schemas/Error.yaml'.
+# - Kiểm thử và chụp ảnh màn hình Swagger lưu vào screenshots/.
+# ============================================================
+
+tags:
+  - tasks
+summary: Xóa công việc
+description: Xóa vĩnh viễn công việc khỏi hệ thống theo taskId.
+operationId: deleteTask
+responses:
+  '204':
+    description: Xóa công việc thành công, không trả về nội dung
+  '401':
+    description: Thiếu hoặc token xác thực Bearer không hợp lệ
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'
+  '404':
+    description: Không tìm thấy công việc tương ứng với taskId
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Error.yaml'
