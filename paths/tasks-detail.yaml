@@ -11,7 +11,7 @@
 tags:
   - tasks
 summary: Lấy chi tiết công việc
-description: Trả về thông tin chi tiết của một công việc cụ thể dựa vào taskId.
+description: Trả về thông tin chi tiết đầy đủ của một công việc dựa trên taskId (UUID).
 operationId: getTaskById
 responses:
   '200':
@@ -20,15 +20,28 @@ responses:
       application/json:
         schema:
           $ref: '../schemas/Task.yaml'
+        example:
+          id: 123e4567-e89b-12d3-a456-426614174000
+          title: Hoàn thành thiết kế OpenAPI Tasks API
+          status: in_progress
+          priority: high
+          dueDate: '2026-10-20'
+          assigneeId: 123e4567-e89b-12d3-a456-426614174001
   '401':
-    description: Thiếu hoặc token xác thực Bearer không hợp lệ
+    description: Thiếu hoặc token xác thực Bearer JWT không hợp lệ
     content:
       application/json:
         schema:
           $ref: '../schemas/Error.yaml'
+        example:
+          code: UNAUTHORIZED
+          message: Token xác thực Bearer không hợp lệ hoặc đã hết hạn
   '404':
     description: Không tìm thấy công việc tương ứng với taskId
     content:
       application/json:
         schema:
           $ref: '../schemas/Error.yaml'
+        example:
+          code: NOT_FOUND
+          message: Không tìm thấy công việc với taskId đã cung cấp

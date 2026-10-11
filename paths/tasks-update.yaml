@@ -12,37 +12,56 @@
 tags:
   - tasks
 summary: Cập nhật một phần công việc
-description: Cập nhật một hoặc một số trường thông tin của công việc dựa vào taskId.
+description: Cập nhật một hoặc một số trường thông tin của công việc dựa vào taskId. Không bắt buộc phải gửi toàn bộ các thuộc tính.
 operationId: patchTask
 requestBody:
   required: true
-  description: Các trường thông tin cần cập nhật
+  description: Thông tin các trường cần cập nhật
   content:
     application/json:
       schema:
         $ref: '../schemas/UpdateTaskInput.yaml'
 responses:
   '200':
-    description: Cập nhật công việc thành công
+    description: Cập nhật công việc thành công, trả về thông tin task sau khi cập nhật
     content:
       application/json:
         schema:
           $ref: '../schemas/Task.yaml'
+        example:
+          id: 123e4567-e89b-12d3-a456-426614174000
+          title: Cập nhật tài liệu thiết kế API và kiểm thử
+          status: in_progress
+          priority: high
+          dueDate: '2026-10-25'
+          assigneeId: 123e4567-e89b-12d3-a456-426614174002
   '401':
-    description: Thiếu hoặc token xác thực Bearer không hợp lệ
+    description: Thiếu hoặc token xác thực Bearer JWT không hợp lệ
     content:
       application/json:
         schema:
           $ref: '../schemas/Error.yaml'
+        example:
+          code: UNAUTHORIZED
+          message: Token xác thực Bearer không hợp lệ hoặc đã hết hạn
   '404':
-    description: Không tìm thấy công việc tương ứng với taskId
+    description: Không tìm thấy công việc tương ứng với taskId để cập nhật
     content:
       application/json:
         schema:
           $ref: '../schemas/Error.yaml'
+        example:
+          code: NOT_FOUND
+          message: Không tìm thấy công việc với taskId đã cung cấp
   '422':
     description: Dữ liệu gửi lên không hợp lệ (lỗi validation)
     content:
       application/json:
         schema:
+          $ref: '../schemas/Error.yaml'
+        example:
+          code: VALIDATION_ERROR
+          message: Dữ liệu cập nhật không hợp lệ
+          details:
+            - 'dueDate phải có định dạng YYYY-MM-DD'
           $ref: '../schemas/Error.yaml'
