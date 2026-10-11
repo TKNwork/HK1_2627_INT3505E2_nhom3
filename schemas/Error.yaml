@@ -17,9 +17,19 @@ required:
 properties:
   code:
     type: string
-    description: Mã định danh lỗi (chuỗi ký tự viết hoa)
+    description: Mã định danh lỗi dạng chuỗi viết hoa (ví dụ UNAUTHORIZED, NOT_FOUND, VALIDATION_ERROR)
     example: NOT_FOUND
   message:
     type: string
     description: Thông điệp mô tả chi tiết lỗi cho client
     example: Không tìm thấy công việc với taskId đã cung cấp
+  details:
+    type: array
+    description: Danh sách chi tiết các lỗi bổ sung (thường dùng cho lỗi validation 422)
+    items:
+      type: string
+    example:
+      - 'Tiêu đề công việc không được để trống'
+example:
+  code: NOT_FOUND
+  message: Không tìm thấy công việc với taskId đã cung cấp
