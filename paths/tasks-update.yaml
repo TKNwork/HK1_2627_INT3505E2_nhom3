@@ -64,4 +64,3 @@ responses:
           message: Dữ liệu cập nhật không hợp lệ
           details:
             - 'dueDate phải có định dạng YYYY-MM-DD'
-          $ref: '../schemas/Error.yaml'
