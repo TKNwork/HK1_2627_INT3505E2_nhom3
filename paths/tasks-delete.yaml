@@ -26,9 +26,15 @@ responses:
       application/json:
         schema:
           $ref: '../schemas/Error.yaml'
+        example:
+          code: UNAUTHORIZED
+          message: Token xác thực Bearer không hợp lệ hoặc đã hết hạn
   '404':
     description: Không tìm thấy công việc tương ứng với taskId
     content:
       application/json:
         schema:
           $ref: '../schemas/Error.yaml'
+        example:
+          code: NOT_FOUND
+          message: Không tìm thấy công việc với taskId đã cung cấp
