@@ -20,11 +20,9 @@ properties:
     maxLength: 200
     example: "Viết đặc tả OpenAPI cho Task API"
   status:
-    description: Trạng thái ban đầu của công việc
-    $ref: "./TaskStatus.yaml"
+    $ref: './TaskStatus.yaml'
   priority:
-    description: Mức độ ưu tiên của công việc
-    $ref: "./TaskPriority.yaml"
+    $ref: './TaskPriority.yaml'
   dueDate:
     type: string
     format: date
