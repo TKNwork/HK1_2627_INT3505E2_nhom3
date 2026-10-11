@@ -9,34 +9,41 @@
 # - Rà soát responses: 201 (Task), 401 (Error), 422 (Error).
 # ============================================================
 
-tags:
-  - tasks
-summary: Tạo công việc mới
-description: Tạo một công việc mới trong hệ thống dựa trên thông tin gửi lên trong body.
-operationId: createTask
-requestBody:
-  required: true
-  description: Thông tin khởi tạo công việc
-  content:
-    application/json:
-      schema:
-        $ref: '../schemas/CreateTaskInput.yaml'
-responses:
-  '201':
-    description: Công việc được tạo thành công
+post:
+  summary: Tạo công việc mới
+  description: Tạo một task mới trong hệ thống. Trả về thông tin task vừa tạo kèm header Location.
+  operationId: createTask
+  tags:
+    - tasks
+  requestBody:
+    required: true
+    description: Dữ liệu khởi tạo công việc
     content:
       application/json:
         schema:
-          $ref: '../schemas/Task.yaml'
-  '401':
-    description: Thiếu hoặc token xác thực Bearer không hợp lệ
-    content:
-      application/json:
-        schema:
-          $ref: '../schemas/Error.yaml'
-  '422':
-    description: Dữ liệu đầu vào không hợp lệ (lỗi validation)
-    content:
-      application/json:
-        schema:
-          $ref: '../schemas/Error.yaml'
+          $ref: '../schemas/CreateTaskInput.yaml'
+  responses:
+    '201':
+      description: Tạo công việc thành công
+      headers:
+        Location:
+          description: Đường dẫn URI đến task vừa tạo
+          schema:
+            type: string
+            example: "/v1/tasks/t-1"
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Task.yaml'
+    '401':
+      description: Chưa xác thực token Bearer JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '422':
+      description: Dữ liệu gửi lên không hợp lệ hoặc thiếu trường bắt buộc
+      content:
+        application/problem+json:
+          schema:
+            $ref: '../schemas/Error.yaml'
