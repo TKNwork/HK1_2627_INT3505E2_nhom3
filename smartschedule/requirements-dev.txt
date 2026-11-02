@@ -1,0 +1,4 @@
+-r services/core/requirements.txt
+-r services/ai/requirements.txt
+-r services/scheduling/requirements.txt
+-r services/notification/requirements.txt

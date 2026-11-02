@@ -1,0 +1,44 @@
+"""Error codes copied from docs/api-contract.xlsx, sheet Errors."""
+from typing import TypedDict
+
+
+class ErrorDetail(TypedDict):
+    field: str
+    reason: str
+
+
+class ErrorCode:
+    AI_INVALID_RESPONSE = 'AI_INVALID_RESPONSE'
+    AI_TIMEOUT = 'AI_TIMEOUT'
+    AI_UNAVAILABLE = 'AI_UNAVAILABLE'
+    DEADLINE_EXCEEDED = 'DEADLINE_EXCEEDED'
+    DRAFT_ALREADY_CONFIRMED = 'DRAFT_ALREADY_CONFIRMED'
+    DRAFT_EXPIRED = 'DRAFT_EXPIRED'
+    DRAFT_NOT_FOUND = 'DRAFT_NOT_FOUND'
+    DRAFT_NOT_READY = 'DRAFT_NOT_READY'
+    EMAIL_ALREADY_EXISTS = 'EMAIL_ALREADY_EXISTS'
+    EVENT_PAYLOAD_MISMATCH = 'EVENT_PAYLOAD_MISMATCH'
+    IDEMPOTENCY_KEY_REQUIRED = 'IDEMPOTENCY_KEY_REQUIRED'
+    IDEMPOTENCY_KEY_REUSED = 'IDEMPOTENCY_KEY_REUSED'
+    INTERNAL_ERROR = 'INTERNAL_ERROR'
+    INVALID_CREDENTIALS = 'INVALID_CREDENTIALS'
+    NOTIFICATION_UNAVAILABLE = 'NOTIFICATION_UNAVAILABLE'
+    RATE_LIMITED = 'RATE_LIMITED'
+    SCHEDULE_CONFLICT = 'SCHEDULE_CONFLICT'
+    SCHEDULING_UNAVAILABLE = 'SCHEDULING_UNAVAILABLE'
+    TASK_ALREADY_COMPLETED = 'TASK_ALREADY_COMPLETED'
+    TASK_NOT_EDITABLE = 'TASK_NOT_EDITABLE'
+    TASK_NOT_FOUND = 'TASK_NOT_FOUND'
+    UNAUTHORIZED = 'UNAUTHORIZED'
+    VALIDATION_ERROR = 'VALIDATION_ERROR'
+    VERSION_CONFLICT = 'VERSION_CONFLICT'
+
+
+class AppError(Exception):
+    def __init__(self, code: str, http_status: int, message: str,
+                 details: list[ErrorDetail] | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.http_status = http_status
+        self.message = message
+        self.details = details or []
