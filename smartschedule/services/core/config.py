@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     init_db: bool = True
     internal_api_key: str = 'CHANGE_ME_INTERNAL_API_KEY'
     jwt_secret: str = 'CHANGE_ME_JWT_SECRET'
-    jwt_expire_minutes: int = 60
+    jwt_access_expire_minutes: int = 10
+    jwt_refresh_expire_days: int = 7
     ai_base_url: str = 'http://127.0.0.1:8001'
     scheduling_base_url: str = 'http://127.0.0.1:8002'
     notification_base_url: str = 'http://127.0.0.1:8003'

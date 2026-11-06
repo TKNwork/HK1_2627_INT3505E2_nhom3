@@ -12,6 +12,10 @@ class Credentials(ApiModel):
         return v.strip() if isinstance(v, str) else v
 
 
+class RefreshRequest(ApiModel):
+    refresh_token: str = Field(min_length=1)
+
+
 class User(ApiModel):
     id: str
     email: str
@@ -24,4 +28,13 @@ class RegisterData(ApiModel):
 class LoginData(ApiModel):
     user: User
     access_token: str
+    refresh_token: str
+    expires_in: int  # access token TTL in seconds
+    expires_at: AwareDatetime
+
+
+class RefreshData(ApiModel):
+    access_token: str
+    refresh_token: str
+    expires_in: int
     expires_at: AwareDatetime

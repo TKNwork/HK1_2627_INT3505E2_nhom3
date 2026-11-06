@@ -41,8 +41,8 @@ def db_engine(settings):
 
     from services.core import models  # noqa: F401 – register models
 
-    # Tạo bảng users cho test auth
-    auth_tables = [models.Users.__table__]
+    # Tạo các bảng cần thiết cho auth (users & refresh_tokens)
+    auth_tables = [models.Users.__table__, models.RefreshTokens.__table__]
     Base.metadata.create_all(engine, tables=auth_tables)
     yield engine
     Base.metadata.drop_all(engine, tables=auth_tables)

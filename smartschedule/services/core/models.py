@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Any
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from .database import Base
 
@@ -22,6 +22,22 @@ class Users(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
 
+
+class RefreshTokens(Base):
+    """Refresh tokens stored in DB, valid for 7 days."""
+    __tablename__ = 'refresh_tokens'
+    id: Mapped[str] = mapped_column(String(128), nullable=False, primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(128), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        Index('ix_refresh_tokens_user', 'user_id'),
+        Index('ix_refresh_tokens_hash', 'token_hash'),
+    )
+
+
 class Tasks(Base):
     __tablename__ = 'tasks'
     id: Mapped[str] = mapped_column(String(128), nullable=False, primary_key=True, default=new_id)
@@ -37,7 +53,6 @@ class Tasks(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
-    # TODO: chốt khóa/ràng buộc chống overlap theo user; version/index thường không đủ.
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'completed')", name="ck_tasks_status"),
         CheckConstraint('duration_minutes BETWEEN 1 AND 1440', name="ck_tasks_duration"),
