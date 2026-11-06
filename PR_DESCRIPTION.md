@@ -1,4 +1,4 @@
-# [Feature] UC-09: trích xuất tiếng Việt và tạo bản nháp — Đào Minh Tuấn
+# [Feature] UC-09: AI Schedule Draft - Đào Minh Tuấn
 
 ## Kết quả
 
