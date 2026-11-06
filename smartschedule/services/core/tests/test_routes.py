@@ -30,6 +30,36 @@ def headers(settings):
             'Idempotency-Key': 'confirm-test-1'}
 
 
+# ── UC-01: Register Tests ────────────────────────────────────────────────
+
+def test_register_success(client):
+    response = client.post('/api/v1/auth/register',
+                           json={'email': 'new@example.com', 'password': 'DemoPass123'},
+                           headers={'X-Request-Id': 'reg-test'})
+    assert response.status_code == 201, response.text
+    data = response.json()['data']
+    assert data['user']['email'] == 'new@example.com'
+    assert data['user']['id']
+
+
+def test_register_duplicate_email(client):
+    client.post('/api/v1/auth/register',
+                json={'email': 'dup@example.com', 'password': 'DemoPass123'})
+    response = client.post('/api/v1/auth/register',
+                           json={'email': 'dup@example.com', 'password': 'OtherPass123'})
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'EMAIL_ALREADY_EXISTS'
+
+
+def test_register_normalizes_email(client):
+    response = client.post('/api/v1/auth/register',
+                           json={'email': '  Upper@Example.COM  ', 'password': 'DemoPass123'})
+    assert response.status_code == 201
+    assert response.json()['data']['user']['email'] == 'upper@example.com'
+
+
+# ── Public & Protected Stubs ─────────────────────────────────────────────
+
 @pytest.mark.parametrize('method,path,body,status', ROUTES)
 def test_all_public_stubs(client, settings, method, path, body, status):
     response = client.request(method, path, json=body, headers=headers(settings))
