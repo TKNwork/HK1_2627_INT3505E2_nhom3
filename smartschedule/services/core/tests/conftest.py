@@ -41,6 +41,14 @@ def app(settings):
             return extract_rules(ExtractionRequest.model_validate(payload)).model_dump(mode='json', by_alias=True)
 
     app = create_app(settings, init_database_on_startup=False)
+    from unittest.mock import MagicMock
+    from services.core.database import get_db
+    from services.core.models import Users
+    app.state.users = {'test-user', 'other-user', 'user-stub'}
+    app.state.auth_session = MagicMock()
+    app.state.auth_session.get.side_effect = lambda model, user_id: (
+        Users(id=user_id) if user_id in app.state.users else None)
+    app.dependency_overrides[get_db] = lambda: app.state.auth_session
     app.state.draft_repository = MemoryDrafts()
     app.dependency_overrides[get_draft_repository] = lambda: app.state.draft_repository
     app.dependency_overrides[get_ai_client] = LocalAI

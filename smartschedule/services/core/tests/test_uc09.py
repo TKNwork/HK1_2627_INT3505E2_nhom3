@@ -103,3 +103,28 @@ def test_upstream_error_mapping(client, app, settings, status, code):
     assert response.status_code == status
     assert response.json()['error']['code'] == code
     assert list(app.state.draft_repository.rows) == ['draft-stub']
+
+
+@pytest.mark.parametrize('method,suffix,body', [('get', '', None),
+    ('patch', '', {'expectedVersion': 1, 'fields': {'title': 'Changed'}}),
+    ('post', '/suggestions', {'expectedVersion': 1}), ('post', '/confirm', {'expectedVersion': 1})])
+def test_deleted_user_cannot_access_draft(client, app, settings, method, suffix, body):
+    app.state.users.remove('test-user')
+    response = client.request(method, '/api/v1/schedule-drafts/draft-stub' + suffix,
+                              json=body, headers=headers(settings))
+    assert response.status_code == 401
+    assert response.json()['error']['code'] == 'UNAUTHORIZED'
+
+
+def test_auth_queries_local_user_from_jwt_subject(client, app, settings):
+    from services.core.models import Users
+    response = client.get('/api/v1/schedule-drafts/draft-stub', headers=headers(settings))
+    assert response.status_code == 200
+    app.state.auth_session.get.assert_called_once_with(Users, 'test-user')
+
+
+def test_invalid_token_does_not_query_users(client, app):
+    response = client.get('/api/v1/schedule-drafts/draft-stub',
+                          headers={'Authorization': 'Bearer invalid-token'})
+    assert response.status_code == 401
+    app.state.auth_session.get.assert_not_called()

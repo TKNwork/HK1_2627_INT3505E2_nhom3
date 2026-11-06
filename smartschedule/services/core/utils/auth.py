@@ -5,6 +5,9 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+from ..database import get_db
+from ..models import Users
 from ..config import Settings
 from ..schemas.base import ApiModel
 from .errors import AppError, ErrorCode
@@ -48,8 +51,11 @@ def decode_access_token(token: str, settings: Settings) -> CurrentUser:
 
 
 def get_current_user(request: Request,
-                     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]) -> CurrentUser:
+                     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+                     session: Annotated[Session, Depends(get_db)]) -> CurrentUser:
     if credentials is None or credentials.scheme.lower() != 'bearer':
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Yêu cầu JWT Bearer.')
-    # TODO: xác minh tài khoản còn tồn tại khi triển khai auth thật (UC-02).
-    return decode_access_token(credentials.credentials, request.app.state.settings)
+    user = decode_access_token(credentials.credentials, request.app.state.settings)
+    if session.get(Users, user.id) is None:
+        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
+    return user

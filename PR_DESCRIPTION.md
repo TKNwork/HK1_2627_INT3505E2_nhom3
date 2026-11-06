@@ -109,14 +109,14 @@ Các hàm `test_*` dưới đây được pytest gọi; các case có tham số 
 | `services/core/tests/test_uc09.py` | `test_deleted_user_rejected` | deleted user rejected; pytest gọi. |
 | `services/core/tests/test_uc09.py` | `test_core_to_ai_transport` | core to ai transport; pytest gọi. |
 | `services/core/tests/test_uc09.py` | `test_upstream_error_mapping` | upstream error mapping; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `extract` | LocalAI dùng rule-based để test không gọi mạng; create_from_text gọi. |
+| `services/core/tests/test_uc09.py` | `BadAI.extract` | Trả response AI cố ý sai schema; create_from_text gọi trong test_invalid_ai_does_not_save. |
 | `services/core/tests/test_draft_repository.py` | `test_add_commits_and_refreshes` | add commits and refreshes; pytest gọi. |
 | `services/core/tests/test_draft_repository.py` | `test_failed_commit_rolls_back` | failed commit rolls back; pytest gọi. |
 | `services/core/tests/test_draft_repository.py` | `test_query_filters_id_and_owner` | query filters id and owner; pytest gọi. |
 
 ## Kết quả kiểm tra
 
-- `python -m pytest -q`: **157 passed**.
+- `python -m pytest -q`: **163 passed**.
 - `python -m scripts.check_contract`: **22/22 endpoint khớp method/path/operationId**.
 - `python -m compileall -q services scripts`: pass.
 - `git diff --check`: pass.
@@ -138,3 +138,60 @@ Các hàm `test_*` dưới đây được pytest gọi; các case có tham số 
 - Reference time là ngữ cảnh diễn giải, không điều khiển TTL; TTL luôn 30 phút từ giờ máy chủ.
 - Deadline/end-time không nhất quán đưa state về needs_input; chưa thực hiện kiểm tra xung đột lịch.
 - PR không merge hay deploy; cần nhóm trưởng review và chạy tích hợp DB/Auth thật.
+
+## Bổ sung sau kiểm toán Auth và đối chiếu Git
+
+`get_current_user` đọc Authorization Bearer, xác minh chữ ký HS256/exp/iat/sub,
+lấy user id từ claim sub rồi session.get(Users, user.id) trong DB Core.
+User không tồn tại trả 401 trước khi truy cập draft. Không có OAuth/Google.
+Kiểm tra user_exists trong create_from_text vẫn là kiểm tra phòng vệ trước gọi AI/lưu dữ liệu.
+Các thao tác PATCH/suggestions/confirm vẫn trả fixture, không sửa draft, tìm lịch hoặc tạo task thật.
+Trạng thái production không lưu session đăng nhập trong bộ nhớ; dữ liệu giả trong app.state chỉ có trong test.
+
+| File | Hàm thêm/sửa sau kiểm toán | Chức năng | Được gọi ở đâu |
+|---|---|---|---|
+| smartschedule/services/core/utils/auth.py | get_current_user | Xác minh JWT rồi kiểm user tồn tại trong users | Dependency của router bảo vệ, create_draft và load_owned_draft; get_db cung cấp Session |
+| smartschedule/services/core/tests/conftest.py | app | Override get_db bằng session mock có tập user; vẫn chạy Auth/JWT thật | Fixture client của pytest |
+| smartschedule/services/core/tests/test_uc09.py | test_deleted_user_cannot_access_draft | User đã xóa bị chặn 401 ở GET/PATCH/suggestions/confirm | pytest, 4 case |
+| smartschedule/services/core/tests/test_uc09.py | test_auth_queries_local_user_from_jwt_subject | Kiểm SELECT đúng Users và sub; dependency chỉ gọi một lần/request | pytest |
+| smartschedule/services/core/tests/test_uc09.py | test_invalid_token_does_not_query_users | JWT sai trả 401 trước truy vấn users | pytest |
+
+Các hàm có sẵn không thay đổi trong file auth.py: hash_password/verify_password là tiện ích
+Argon2 cho luồng Auth, create_access_token được login skeleton gọi; decode_access_token được
+get_current_user gọi; chưa triển khai đăng ký/đăng nhập thật trong PR UC-09.
+Các hàm không thay đổi trong routers/drafts.py: require_idempotency_key do dependency confirm gọi.
+Fixture settings/client trong conftest.py giữ nguyên; Settings trong ai/config.py chỉ thêm thuộc tính,
+không có hàm mới. Các DTO chỉ khai báo field, không có hàm mới ngoài clean_text đã liệt kê.
+
+### Danh sách file thực tế theo git diff origin/main...HEAD
+
+Danh sách bao gồm các commit triển khai, tài liệu và sửa kiểm toán; các bản
+PR_UC09.md/PR_DESCRIPTION_UC09.md là tài liệu lịch sử, PR_DESCRIPTION.md là bản hiện hành.
+
+```text
+A	PR_DESCRIPTION.md
+A	PR_DESCRIPTION_UC09.md
+A	PR_UC09.md
+M	smartschedule/README.md
+M	smartschedule/services/ai/.env.example
+M	smartschedule/services/ai/README.md
+M	smartschedule/services/ai/clients/llm_client.py
+M	smartschedule/services/ai/config.py
+M	smartschedule/services/ai/routers/extractions.py
+M	smartschedule/services/ai/schemas/extractions.py
+A	smartschedule/services/ai/services/extraction.py
+A	smartschedule/services/ai/services/provider.py
+A	smartschedule/services/ai/tests/test_extraction.py
+M	smartschedule/services/core/README.md
+M	smartschedule/services/core/clients/ai_client.py
+M	smartschedule/services/core/clients/http_client.py
+A	smartschedule/services/core/repositories/__init__.py
+A	smartschedule/services/core/repositories/drafts.py
+M	smartschedule/services/core/routers/drafts.py
+M	smartschedule/services/core/schemas/drafts.py
+A	smartschedule/services/core/services/drafts.py
+M	smartschedule/services/core/tests/conftest.py
+A	smartschedule/services/core/tests/test_draft_repository.py
+A	smartschedule/services/core/tests/test_uc09.py
+M	smartschedule/services/core/utils/auth.py
+```
