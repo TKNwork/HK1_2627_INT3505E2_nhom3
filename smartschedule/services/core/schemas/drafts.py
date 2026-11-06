@@ -1,8 +1,8 @@
 from datetime import date as Date
 from typing import Literal
-from pydantic import AwareDatetime, Field
+from pydantic import AliasChoices, AwareDatetime, Field, field_validator
 from .base import ApiModel
-from .tasks import Duration, ReminderMinutes, TimezoneName, Title, Version, Task, Task
+from .tasks import Duration, ReminderMinutes, TimezoneName, Title, Version, Task
 
 
 class Warning(ApiModel):
@@ -25,6 +25,13 @@ class DraftFields(ApiModel):
     reminder_minutes: ReminderMinutes | None = None
 
 
+class ExtractionResult(ApiModel):
+    fields: DraftFields
+    missing_fields: list[str]
+    required_input_fields: list[str]
+    warnings: list[Warning]
+
+
 class Draft(ApiModel):
     id: str
     source_text: str
@@ -40,8 +47,16 @@ class Draft(ApiModel):
 
 
 class CreateDraft(ApiModel):
-    source_text: str = Field(min_length=1, max_length=2000)
-    timezone: TimezoneName
+    source_text: str = Field(min_length=1, max_length=2000, validation_alias=AliasChoices('sourceText', 'source_text', 'text', 'prompt'))
+    timezone: TimezoneName = 'Asia/Ho_Chi_Minh'
+    reference_time: AwareDatetime | None = Field(default=None, validation_alias=AliasChoices('referenceTime', 'reference_time'))
+
+    @field_validator('source_text')
+    @classmethod
+    def clean_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError('Nội dung không được để trống.')
+        return value.strip()
 
 
 class PatchDraft(ApiModel):
