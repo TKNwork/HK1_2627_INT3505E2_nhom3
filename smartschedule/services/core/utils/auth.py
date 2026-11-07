@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 import jwt
@@ -29,10 +31,14 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(user_id: str, settings: Settings) -> tuple[str, datetime]:
+    """Tạo access token JWT – hết hạn theo jwt_access_expire_minutes (mặc định 10 phút)."""
     settings.require_auth_secrets()
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(minutes=settings.jwt_expire_minutes)
-    token = jwt.encode({'sub': user_id, 'iat': now, 'exp': expires_at}, settings.jwt_secret, algorithm='HS256')
+    expires_at = now + timedelta(minutes=settings.jwt_access_expire_minutes)
+    token = jwt.encode(
+        {'sub': user_id, 'iat': now, 'exp': expires_at, 'type': 'access'},
+        settings.jwt_secret, algorithm='HS256',
+    )
     return token, expires_at
 
 
@@ -42,14 +48,30 @@ def decode_access_token(token: str, settings: Settings) -> CurrentUser:
                              options={'require': ['sub', 'iat', 'exp']})
         if not isinstance(payload['sub'], str) or not payload['sub']:
             raise jwt.InvalidTokenError('Missing subject')
+        if payload.get('type') != 'access':
+            raise jwt.InvalidTokenError('Not an access token')
         return CurrentUser(id=payload['sub'])
     except jwt.InvalidTokenError as exc:
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Token không hợp lệ hoặc đã hết hạn.') from exc
+
+
+def generate_refresh_token() -> str:
+    """Sinh chuỗi refresh token ngẫu nhiên (URL-safe)."""
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    """Băm refresh token bằng SHA-256 để lưu DB."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def get_refresh_expiry(settings: Settings) -> datetime:
+    """Thời điểm hết hạn của refresh token (mặc định 7 ngày)."""
+    return datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_expire_days)
 
 
 def get_current_user(request: Request,
                      credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]) -> CurrentUser:
     if credentials is None or credentials.scheme.lower() != 'bearer':
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Yêu cầu JWT Bearer.')
-    # TODO: xác minh tài khoản còn tồn tại khi triển khai auth thật (UC-02).
     return decode_access_token(credentials.credentials, request.app.state.settings)
