@@ -16,13 +16,10 @@ from ..utils.auth import (
 )
 from ..utils.errors import AppError, ErrorCode
 
-
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 def _build_token_pair(user: Users, settings: Settings, db: Session) -> dict:
-    """Tạo cặp access + refresh token, lưu refresh vào DB."""
+    """Tạo cặp token và đưa refresh token vào transaction hiện tại."""
     access_token, expires_at = create_access_token(user.id, settings)
     raw_refresh = generate_refresh_token()
     refresh_row = RefreshTokens(
@@ -31,7 +28,6 @@ def _build_token_pair(user: Users, settings: Settings, db: Session) -> dict:
         expires_at=get_refresh_expiry(settings),
     )
     db.add(refresh_row)
-    db.commit()
     return {
         'access_token': access_token,
         'refresh_token': raw_refresh,
@@ -40,9 +36,7 @@ def _build_token_pair(user: Users, settings: Settings, db: Session) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
 # UC-01: Đăng ký
-# ---------------------------------------------------------------------------
 
 def register_user(email: str, password: str, db: Session) -> Users:
     """Tạo tài khoản mới.
@@ -67,9 +61,7 @@ def register_user(email: str, password: str, db: Session) -> Users:
     return user
 
 
-# ---------------------------------------------------------------------------
 # UC-02: Đăng nhập
-# ---------------------------------------------------------------------------
 
 def login_user(email: str, password: str, settings: Settings, db: Session) -> dict:
     """Xác thực email + password, trả về user kèm cặp token.
@@ -82,49 +74,47 @@ def login_user(email: str, password: str, settings: Settings, db: Session) -> di
     if user is None or not verify_password(password, user.password_hash):
         raise AppError(ErrorCode.INVALID_CREDENTIALS, 401, 'Email hoặc mật khẩu không đúng.')
     tokens = _build_token_pair(user, settings, db)
+    db.commit()
     return {'user': user, **tokens}
 
 
-# ---------------------------------------------------------------------------
 # Refresh token
-# ---------------------------------------------------------------------------
 
 def refresh_tokens(raw_refresh: str, settings: Settings, db: Session) -> dict:
-    """Xoay refresh token (rotation): vô hiệu token cũ, trả cặp mới.
-
-    - Ném lỗi ``UNAUTHORIZED`` nếu token không hợp lệ / hết hạn / đã revoke.
-    """
+    """Vô hiệu refresh token cũ và lưu token mới trong cùng transaction."""
     token_hash = hash_refresh_token(raw_refresh)
-    row = db.query(RefreshTokens).filter(RefreshTokens.token_hash == token_hash).first()
+    with db.begin():
+        row = (
+            db.query(RefreshTokens)
+            .filter(RefreshTokens.token_hash == token_hash)
+            .with_for_update()
+            .first()
+        )
+        if row is None:
+            raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token không tồn tại.')
 
-    if row is None:
-        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token không tồn tại.')
-    if row.revoked:
-        # Token đã bị revoke → có thể bị đánh cắp, revoke tất cả token của user
-        db.query(RefreshTokens).filter(
-            RefreshTokens.user_id == row.user_id,
-            RefreshTokens.revoked == False,  # noqa: E712
-        ).update({'revoked': True})
-        db.commit()
-        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token đã bị thu hồi.')
+        if row.revoked:
+            # Dùng lại token đã thu hồi thì thu hồi mọi refresh token của user.
+            db.query(RefreshTokens).filter(
+                RefreshTokens.user_id == row.user_id,
+                RefreshTokens.revoked.is_(False),
+            ).update({'revoked': True})
+        else:
+            expires_at = row.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= datetime.now(timezone.utc):
+                raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token đã hết hạn.')
 
-    expires_at = row.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token đã hết hạn.')
+            user = db.get(Users, row.user_id)
+            if user is None:
+                raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
 
-    # Revoke token cũ
-    row.revoked = True
-    db.commit()
+            row.revoked = True
+            return _build_token_pair(user, settings, db)
 
-    # Lấy user để tạo cặp mới
-    user = db.query(Users).filter(Users.id == row.user_id).first()
-    if user is None:
-        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
-
-    tokens = _build_token_pair(user, settings, db)
-    return tokens
+    # Báo lỗi sau khi transaction đã commit việc thu hồi.
+    raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token đã bị thu hồi.')
 
 
 # ---------------------------------------------------------------------------
