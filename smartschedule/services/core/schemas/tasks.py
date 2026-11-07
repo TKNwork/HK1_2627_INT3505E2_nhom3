@@ -6,7 +6,14 @@ Duration = Annotated[int, Field(strict=True, ge=1, le=1440)]
 Version = Annotated[int, Field(strict=True, ge=1)]
 ReminderMinutes = Literal[5, 10, 15, 30]
 TimezoneName = Annotated[str, AfterValidator(validate_timezone)]
-Title = Annotated[str, Field(min_length=1, max_length=200)]
+Title = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=200,
+        strip_whitespace=True,
+    ),
+]
 
 
 class Task(ApiModel):
