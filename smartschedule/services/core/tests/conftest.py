@@ -58,6 +58,49 @@ def db_session(db_engine):
 
 
 @pytest.fixture
+def app(settings):
+    """Dùng DB và AI giả để kiểm thử Core mà không gọi dịch vụ ngoài."""
+    from datetime import datetime, timedelta, timezone
+    from services.core.models import ScheduleDrafts
+    from services.core.services.drafts import get_ai_client, get_draft_repository
+    from services.core.services.fixtures import stub_draft
+    from services.ai.schemas.extractions import ExtractionRequest
+    from services.ai.services.extraction import extract_rules
+
+    class MemoryDrafts:
+        def __init__(self):
+            draft = stub_draft().model_dump()
+            self.rows = {'draft-stub': ScheduleDrafts(**draft, user_id='test-user')}
+            self.rows['draft-stub'].expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+        def user_exists(self, user_id):
+            return user_id in ('test-user', 'other-user')
+
+        def add(self, row):
+            self.rows[row.id] = row
+            return row
+
+        def find_owned(self, draft_id, user_id):
+            row = self.rows.get(draft_id)
+            return row if row is not None and row.user_id == user_id else None
+
+    class LocalAI:
+        async def extract(self, payload, request_id):
+            return extract_rules(ExtractionRequest.model_validate(payload)).model_dump(mode='json', by_alias=True)
+
+    app = create_app(settings, init_database_on_startup=False)
+    from unittest.mock import MagicMock
+    from services.core.database import get_db
+    from services.core.models import Users
+    app.state.users = {'test-user', 'other-user', 'user-stub'}
+    app.state.auth_session = MagicMock()
+    app.state.auth_session.get.side_effect = lambda model, user_id: (
+        Users(id=user_id) if user_id in app.state.users else None)
+    app.dependency_overrides[get_db] = lambda: app.state.auth_session
+    app.state.draft_repository = MemoryDrafts()
+    app.dependency_overrides[get_draft_repository] = lambda: app.state.draft_repository
+    app.dependency_overrides[get_ai_client] = LocalAI
+    return app
 def app(settings, db_engine):
     application = create_app(settings, init_database_on_startup=False)
 
