@@ -1,3 +1,4 @@
+"""Kiểm thử bộ trích xuất, fallback và adapter LLM bằng dữ liệu giả."""
 import asyncio
 import json
 import httpx
@@ -11,6 +12,7 @@ NOW = '2026-11-06T10:00:00+07:00'
 
 
 def body(text, now=NOW, zone='Asia/Ho_Chi_Minh'):
+    """Tạo request AI có mốc thời gian cố định; cho phép test thay câu, timezone hoặc thời điểm."""
     return ExtractionRequest(source_text=text, timezone=zone, now=now)
 
 
@@ -26,6 +28,7 @@ def body(text, now=NOW, zone='Asia/Ho_Chi_Minh'):
     ('Làm bài SOA', None, None, None, None),
 ])
 def test_vietnamese_rules(text, date, start, duration, deadline):
+    """Kiểm ngày, giờ, thời lượng và deadline với các mẫu câu tiếng Việt có tham số."""
     data = extract_rules(body(text))
     fields = data.fields
     assert (fields.date.isoformat() if fields.date else None) == date
@@ -38,10 +41,12 @@ def test_vietnamese_rules(text, date, start, duration, deadline):
 
 
 def test_title_preserves_accents_and_does_not_include_time():
+    """Kiểm tiêu đề còn dấu tiếng Việt và đã bỏ phần thời gian."""
     assert extract_rules(body('Ngày mai họp nhóm lúc 9h trong 1 tiếng rưỡi')).fields.title == 'họp nhóm'
 
 
 def test_reference_crosses_local_midnight():
+    """Kiểm ngày tương đối theo timezone khi mốc UTC đã qua nửa đêm tại Việt Nam."""
     data = extract_rules(body('Ngày mai học SOA 30 phút', '2026-11-06T18:00:00Z'))
     assert str(data.fields.date) == '2026-11-08'
 
@@ -56,13 +61,16 @@ def test_reference_crosses_local_midnight():
     ('Ngày mai học SOA lúc 16h trong 90 phút, xong trước 17h', 'DEADLINE_EXCEEDED'),
 ])
 def test_ambiguous_or_invalid_input_returns_warning(text, code):
+    """Kiểm mỗi đầu vào sai hoặc mơ hồ trả mã cảnh báo dự kiến."""
     result = extract_rules(body(text))
     assert code in [w.code for w in result.warnings]
 
 
 @pytest.mark.parametrize('failure', ['timeout', 'http', 'json', 'schema'])
 def test_provider_fallback(settings, monkeypatch, failure):
+    """Kiểm LLM lỗi HTTP, timeout, JSON hoặc schema thì vẫn có kết quả từ quy tắc."""
     async def broken(*args):
+        """Giả lỗi provider hoặc schema để kiểm tra đường đi fallback."""
         if failure == 'timeout':
             raise httpx.ReadTimeout('timeout')
         if failure == 'http':
@@ -78,8 +86,10 @@ def test_provider_fallback(settings, monkeypatch, failure):
 
 
 def test_llm_http_adapter(settings):
+    """Kiểm URL, header, payload và việc đọc JSON từ provider bằng HTTP giả."""
     settings.llm_api_key, settings.llm_base_url, settings.llm_model = 'secret-test', 'https://provider.invalid/v1', 'test'
     def handle(request):
+        """Kiểm payload/header gọi LLM và trả HTTP JSON giả qua MockTransport."""
         assert request.headers['Authorization'] == 'Bearer secret-test'
         assert request.headers['X-Request-Id'] == 'trace'
         assert request.url.path == '/v1/chat/completions'
@@ -93,6 +103,7 @@ def test_llm_http_adapter(settings):
 
 
 def test_internal_endpoint_no_key_and_input_aliases(client, settings):
+    """Kiểm endpoint có internal key nhưng chưa cấu hình LLM vẫn nhận alias prompt/reference_time."""
     response = client.post('/internal/v1/extractions', headers={'X-Internal-Api-Key': settings.internal_api_key},
         json={'prompt': 'Ngày mai học SOA trong 60 phút', 'reference_time': NOW})
     assert response.status_code == 200

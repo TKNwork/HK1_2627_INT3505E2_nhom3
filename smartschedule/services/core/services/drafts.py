@@ -1,3 +1,4 @@
+"""Điều phối UC-09: gọi AI, kiểm tra dữ liệu và lưu bản nháp trong Core."""
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -13,14 +14,17 @@ from ..utils.errors import AppError, ErrorCode
 
 
 def get_draft_repository(session=Depends(get_db)):
+    """Cung cấp repository dùng phiên DB của request qua dependency FastAPI."""
     return DraftRepository(session)
 
 
 def get_ai_client(request: Request):
+    """Tạo client gọi AI từ cấu hình của ứng dụng Core."""
     return AIClient(request.app.state.settings)
 
 
 def draft_response(row: ScheduleDrafts) -> Draft:
+    """Chuyển bản ghi ScheduleDrafts thành DTO Draft để kiểm tra và trả qua API."""
     return Draft(id=row.id, source_text=row.source_text, fields=row.fields,
                  missing_fields=row.missing_fields, required_input_fields=row.required_input_fields,
                  warnings=row.warnings, suggestions=row.suggestions, state=row.state,
@@ -29,6 +33,11 @@ def draft_response(row: ScheduleDrafts) -> Draft:
 
 def load_owned_draft(id: str, user: CurrentUser = Depends(get_current_user),
                      repository=Depends(get_draft_repository)):
+    """Lấy bản nháp còn hạn thuộc người dùng trong JWT.
+
+    Hàm được dùng làm dependency cho các route bản nháp. Repository lọc đồng thời
+    id và user.id; không tìm thấy hoặc khác chủ sở hữu đều trả 404. Bản nháp thuộc
+    người dùng nhưng đã hết hạn trả 410. Hàm không gia hạn hoặc sửa bản nháp."""
     row = repository.find_owned(id, user.id)
     if row is None:
         raise AppError(ErrorCode.DRAFT_NOT_FOUND, 404, 'Không tìm thấy bản nháp.')
@@ -38,6 +47,19 @@ def load_owned_draft(id: str, user: CurrentUser = Depends(get_current_user),
 
 
 async def create_from_text(body: CreateDraft, user_id: str, repository, ai, request_id: str) -> Draft:
+    """Tạo bản nháp từ câu tiếng Việt cho user_id đã được xác thực.
+
+    body chứa nội dung, múi giờ và thời điểm tham chiếu tùy chọn. Hàm gọi ai.extract
+    bằng request_id hiện tại, kiểm schema, chuẩn hóa thời điểm sang UTC rồi tính lại
+    trường thiếu và trạng thái trước khi repository lưu dữ liệu.
+
+    Kết quả là DTO Draft có version 1 và hạn dùng 30 phút tính từ giờ máy chủ lấy
+    trước lời gọi AI. reference_time chỉ dùng để diễn giải câu, không quyết định TTL.
+    Không tạo task, gợi ý lịch hoặc sự kiện nhắc việc.
+
+    Báo 401 nếu user không tồn tại, 502 nếu kết quả AI sai; lỗi 503/504 từ client AI
+    được truyền lên tầng xử lý lỗi chung. Lỗi DB được repository rollback khi có thể
+    rồi truyền lên, không đổi thành lỗi AI."""
     if not repository.user_exists(user_id):
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
     now = datetime.now(timezone.utc)

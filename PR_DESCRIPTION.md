@@ -75,8 +75,8 @@ Tất cả đường dẫn dưới đây tính từ `smartschedule/`.
 - `services/core/repositories/__init__.py`: khởi tạo package repository, không có hàm.
 - `README.md`, `services/core/README.md`, `services/ai/README.md`: phạm vi UC-09,
   ví dụ request, cách cấu hình/chạy/test và các phần skeleton còn lại.
-- `PR_UC09.md` (gốc repository): mô tả PR này, không có hàm.
-- Không sửa file trong docs/, task-api/, auth implementation, models hoặc database schema.
+- `PR_DESCRIPTION.md` (gốc repository): mô tả thay đổi và kiểm thử, không có hàm.
+- Không sửa file trong docs/, task-api/, model hoặc schema database. `get_current_user` được cập nhật để kiểm tra tài khoản còn tồn tại.
 
 ## Test và nơi gọi các hàm test
 
@@ -91,28 +91,28 @@ Các hàm `test_*` dưới đây được pytest gọi; các case có tham số 
 | `services/core/tests/conftest.py` | `find_owned` | Lọc chủ sở hữu trong bộ nhớ; load_owned_draft gọi trong test. |
 | `services/core/tests/conftest.py` | `extract` | LocalAI dùng rule-based để test không gọi mạng; create_from_text gọi. |
 | `services/ai/tests/test_extraction.py` | `body` | Tạo ExtractionRequest cố định; các test rule/provider gọi. |
-| `services/ai/tests/test_extraction.py` | `test_vietnamese_rules` | vietnamese rules; pytest gọi. |
-| `services/ai/tests/test_extraction.py` | `test_title_preserves_accents_and_does_not_include_time` | title preserves accents and does not include time; pytest gọi. |
-| `services/ai/tests/test_extraction.py` | `test_reference_crosses_local_midnight` | reference crosses local midnight; pytest gọi. |
-| `services/ai/tests/test_extraction.py` | `test_ambiguous_or_invalid_input_returns_warning` | ambiguous or invalid input returns warning; pytest gọi. |
-| `services/ai/tests/test_extraction.py` | `test_provider_fallback` | provider fallback; pytest gọi. |
-| `services/ai/tests/test_extraction.py` | `test_llm_http_adapter` | llm http adapter; pytest gọi. |
-| `services/ai/tests/test_extraction.py` | `test_internal_endpoint_no_key_and_input_aliases` | internal endpoint no key and input aliases; pytest gọi. |
+| `services/ai/tests/test_extraction.py` | `test_vietnamese_rules` | Các mẫu trích xuất tiếng Việt; pytest gọi. |
+| `services/ai/tests/test_extraction.py` | `test_title_preserves_accents_and_does_not_include_time` | Tiêu đề giữ dấu và không chứa giờ; pytest gọi. |
+| `services/ai/tests/test_extraction.py` | `test_reference_crosses_local_midnight` | Ngày tham chiếu khi đổi múi giờ qua nửa đêm; pytest gọi. |
+| `services/ai/tests/test_extraction.py` | `test_ambiguous_or_invalid_input_returns_warning` | Cảnh báo cho dữ liệu mơ hồ hoặc sai; pytest gọi. |
+| `services/ai/tests/test_extraction.py` | `test_provider_fallback` | Fallback khi provider lỗi; pytest gọi. |
+| `services/ai/tests/test_extraction.py` | `test_llm_http_adapter` | Lời gọi và phản hồi LLM qua HTTP; pytest gọi. |
+| `services/ai/tests/test_extraction.py` | `test_internal_endpoint_no_key_and_input_aliases` | Endpoint nội bộ và các tên trường đầu vào; pytest gọi. |
 | `services/ai/tests/test_extraction.py` | `broken` | Giả provider timeout/HTTP/JSON/schema lỗi; extract_request gọi qua monkeypatch. |
 | `services/ai/tests/test_extraction.py` | `handle` | Mock HTTP provider, kiểm payload/header và trả JSON; MockTransport gọi. |
-| `services/core/tests/test_uc09.py` | `test_create_then_read_draft` | create then read draft; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_bola` | bola; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_expired_and_missing` | expired and missing; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_invalid_input` | invalid input; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_invalid_ai_does_not_save` | invalid ai does not save; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_states` | states; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_deleted_user_rejected` | deleted user rejected; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_core_to_ai_transport` | core to ai transport; pytest gọi. |
-| `services/core/tests/test_uc09.py` | `test_upstream_error_mapping` | upstream error mapping; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_create_then_read_draft` | Tạo rồi đọc lại bản nháp; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_bola` | Quyền truy cập bản nháp của user khác; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_expired_and_missing` | Bản nháp hết hạn hoặc không tồn tại; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_invalid_input` | Dữ liệu đầu vào không hợp lệ; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_invalid_ai_does_not_save` | Không lưu khi AI trả dữ liệu sai; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_states` | Các trạng thái bản nháp; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_deleted_user_rejected` | Từ chối user không tồn tại; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_core_to_ai_transport` | Kết nối từ Core sang AI; pytest gọi. |
+| `services/core/tests/test_uc09.py` | `test_upstream_error_mapping` | Mã lỗi từ AI; pytest gọi. |
 | `services/core/tests/test_uc09.py` | `BadAI.extract` | Trả response AI cố ý sai schema; create_from_text gọi trong test_invalid_ai_does_not_save. |
-| `services/core/tests/test_draft_repository.py` | `test_add_commits_and_refreshes` | add commits and refreshes; pytest gọi. |
-| `services/core/tests/test_draft_repository.py` | `test_failed_commit_rolls_back` | failed commit rolls back; pytest gọi. |
-| `services/core/tests/test_draft_repository.py` | `test_query_filters_id_and_owner` | query filters id and owner; pytest gọi. |
+| `services/core/tests/test_draft_repository.py` | `test_add_commits_and_refreshes` | Lưu và đọc lại bản nháp; pytest gọi. |
+| `services/core/tests/test_draft_repository.py` | `test_failed_commit_rolls_back` | Rollback khi commit lỗi; pytest gọi. |
+| `services/core/tests/test_draft_repository.py` | `test_query_filters_id_and_owner` | Truy vấn theo ID và chủ sở hữu; pytest gọi. |
 
 ## Kết quả kiểm tra
 
@@ -165,13 +165,10 @@ không có hàm mới. Các DTO chỉ khai báo field, không có hàm mới ngo
 
 ### Danh sách file thực tế theo git diff origin/main...HEAD
 
-Danh sách bao gồm các commit triển khai, tài liệu và sửa kiểm toán; các bản
-PR_UC09.md/PR_DESCRIPTION_UC09.md là tài liệu lịch sử, PR_DESCRIPTION.md là bản hiện hành.
+Danh sách thay đổi so với nhánh main:
 
 ```text
 A	PR_DESCRIPTION.md
-A	PR_DESCRIPTION_UC09.md
-A	PR_UC09.md
 M	smartschedule/README.md
 M	smartschedule/services/ai/.env.example
 M	smartschedule/services/ai/README.md

@@ -1,3 +1,4 @@
+"""Kiểm thử UC-09 qua API, gồm dữ liệu, Auth, TTL, BOLA và lỗi AI."""
 from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
@@ -13,6 +14,7 @@ PAYLOAD = {'sourceText': TEXT, 'timezone': 'Asia/Ho_Chi_Minh', 'referenceTime': 
 
 
 def test_create_then_read_draft(client, app, settings):
+    """Kiểm tạo draft, đọc lại, owner, version, trạng thái và TTL tính theo giờ máy chủ."""
     before = datetime.now(timezone.utc)
     response = client.post('/api/v1/schedule-drafts', json=PAYLOAD, headers=headers(settings))
     assert response.status_code == 201, response.text
@@ -37,6 +39,7 @@ def test_create_then_read_draft(client, app, settings):
     ('patch', '', {'expectedVersion': 1, 'fields': {'title': 'Hacked'}}),
     ('post', '/suggestions', {'expectedVersion': 1}), ('post', '/confirm', {'expectedVersion': 1})])
 def test_bola(client, settings, method, suffix, body):
+    """Kiểm user khác bị từ chối 404 ở các thao tác có guard trên draft."""
     auth = headers(settings)
     auth['Authorization'] = 'Bearer ' + create_access_token('other-user', settings)[0]
     response = client.request(method, '/api/v1/schedule-drafts/draft-stub' + suffix, json=body, headers=auth)
@@ -45,6 +48,7 @@ def test_bola(client, settings, method, suffix, body):
 
 
 def test_expired_and_missing(client, app, settings):
+    """Kiểm draft hết hạn trả 410 và draft không tồn tại trả 404."""
     app.state.draft_repository.rows['draft-stub'].expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     assert client.get('/api/v1/schedule-drafts/draft-stub', headers=headers(settings)).status_code == 410
     assert client.get('/api/v1/schedule-drafts/missing', headers=headers(settings)).status_code == 404
@@ -53,6 +57,7 @@ def test_expired_and_missing(client, app, settings):
 @pytest.mark.parametrize('payload', [{'text': '  '}, {'text': 'SOA', 'timezone': 'Invalid/Zone'},
     {'text': 'SOA', 'reference_time': '2026-11-06T10:00:00'}])
 def test_invalid_input(client, settings, payload):
+    """Kiểm nội dung trắng, timezone sai hoặc thời điểm thiếu offset trả 400."""
     assert client.post('/api/v1/schedule-drafts', json=payload, headers=headers(settings)).status_code == 400
 
 
@@ -61,8 +66,11 @@ def test_invalid_input(client, settings, payload):
     {'fields': {}, 'warnings': 'invalid'}, {}, {'fields': {'title': '  '}, 'warnings': []},
     {'fields': {'date': '2026-11-08', 'startAt': '2026-11-07T09:00:00+07:00'}, 'warnings': []}])
 def test_invalid_ai_does_not_save(client, app, settings, result):
+    """Kiểm AI trả dữ liệu sai thì Core trả 502 và không thêm draft vào kho."""
     class BadAI:
+        """Client giả cố ý trả kết quả sai để kiểm tra Core từ chối trước khi lưu."""
         async def extract(self, payload, request_id):
+            """Trả dữ liệu sai do test cung cấp để kiểm tra nhánh AI_INVALID_RESPONSE."""
             return result
     app.dependency_overrides[get_ai_client] = BadAI
     response = client.post('/api/v1/schedule-drafts', json=PAYLOAD, headers=headers(settings))
@@ -74,6 +82,7 @@ def test_invalid_ai_does_not_save(client, app, settings, result):
     ('Ngày mai họp lúc 9h trong 60 phút', 'ready_to_confirm', []),
     ('Ngày mai học SOA lúc 16h trong 90 phút, xong trước 17h', 'needs_input', ['deadlineAt'])])
 def test_states(client, settings, text, state, required):
+    """Kiểm trạng thái và trường cần bổ sung khi thiếu dữ liệu hoặc vượt deadline."""
     response = client.post('/api/v1/schedule-drafts', json={**PAYLOAD, 'sourceText': text}, headers=headers(settings))
     draft = response.json()['data']['draft']
     assert draft['state'] == state
@@ -81,12 +90,14 @@ def test_states(client, settings, text, state, required):
 
 
 def test_deleted_user_rejected(client, settings):
+    """Kiểm JWT của tài khoản không tồn tại bị từ chối 401 khi tạo draft."""
     auth = headers(settings)
     auth['Authorization'] = 'Bearer ' + create_access_token('deleted-user', settings)[0]
     assert client.post('/api/v1/schedule-drafts', json=PAYLOAD, headers=auth).status_code == 401
 
 
 def test_core_to_ai_transport(client, app, settings):
+    """Kiểm Core gọi app AI qua ASGITransport, giữ requestId và nhận dữ liệu trích xuất."""
     ai_app = create_ai_app(AISettings(_env_file=None, internal_api_key=settings.internal_api_key))
     app.dependency_overrides[get_ai_client] = lambda: AIClient(settings, transport=httpx.ASGITransport(app=ai_app))
     response = client.post('/api/v1/schedule-drafts', json=PAYLOAD, headers=headers(settings))
@@ -97,6 +108,7 @@ def test_core_to_ai_transport(client, app, settings):
 
 @pytest.mark.parametrize('status,code', [(502, 'AI_INVALID_RESPONSE'), (503, 'AI_UNAVAILABLE'), (504, 'AI_TIMEOUT')])
 def test_upstream_error_mapping(client, app, settings, status, code):
+    """Kiểm lỗi HTTP 502/503/504 từ AI được Core trả đúng mã và không lưu draft."""
     app.dependency_overrides[get_ai_client] = lambda: AIClient(settings,
         transport=httpx.MockTransport(lambda request: httpx.Response(status)))
     response = client.post('/api/v1/schedule-drafts', json=PAYLOAD, headers=headers(settings))
@@ -109,6 +121,7 @@ def test_upstream_error_mapping(client, app, settings, status, code):
     ('patch', '', {'expectedVersion': 1, 'fields': {'title': 'Changed'}}),
     ('post', '/suggestions', {'expectedVersion': 1}), ('post', '/confirm', {'expectedVersion': 1})])
 def test_deleted_user_cannot_access_draft(client, app, settings, method, suffix, body):
+    """Kiểm user đã xóa bị chặn 401 trước các thao tác đọc, sửa, gợi ý và xác nhận."""
     app.state.users.remove('test-user')
     response = client.request(method, '/api/v1/schedule-drafts/draft-stub' + suffix,
                               json=body, headers=headers(settings))
@@ -117,6 +130,7 @@ def test_deleted_user_cannot_access_draft(client, app, settings, method, suffix,
 
 
 def test_auth_queries_local_user_from_jwt_subject(client, app, settings):
+    """Kiểm Auth tra đúng Users bằng claim sub và chỉ gọi dependency một lần trong request."""
     from services.core.models import Users
     response = client.get('/api/v1/schedule-drafts/draft-stub', headers=headers(settings))
     assert response.status_code == 200
@@ -124,6 +138,7 @@ def test_auth_queries_local_user_from_jwt_subject(client, app, settings):
 
 
 def test_invalid_token_does_not_query_users(client, app):
+    """Kiểm JWT sai bị chặn trước truy vấn users."""
     response = client.get('/api/v1/schedule-drafts/draft-stub',
                           headers={'Authorization': 'Bearer invalid-token'})
     assert response.status_code == 401
