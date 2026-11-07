@@ -1,4 +1,4 @@
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 from .base import ApiModel
 
 
@@ -6,6 +6,11 @@ class Slot(ApiModel):
     start_at: AwareDatetime
     end_at: AwareDatetime
 
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.end_at <= self.start_at:
+            raise ValueError("endAt phải lớn hơn startAt.")
+        return self
 
 class BusySlot(Slot):
     task_id: str
