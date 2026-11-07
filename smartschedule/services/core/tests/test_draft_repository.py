@@ -1,4 +1,3 @@
-"""Kiểm thử thao tác session và SQL của repository, không kết nối PostgreSQL thật."""
 from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -7,7 +6,6 @@ from services.core.repositories.drafts import DraftRepository
 
 
 def test_add_commits_and_refreshes():
-    """Kiểm repository gọi add, commit và refresh trên session giả."""
     session = MagicMock()
     row = ScheduleDrafts(id='draft')
     assert DraftRepository(session).add(row) is row
@@ -17,7 +15,6 @@ def test_add_commits_and_refreshes():
 
 
 def test_failed_commit_rolls_back():
-    """Kiểm lỗi commit khiến repository rollback và phát lại lỗi."""
     session = MagicMock()
     session.commit.side_effect = RuntimeError('database failure')
     with pytest.raises(RuntimeError):
@@ -27,7 +24,6 @@ def test_failed_commit_rolls_back():
 
 
 def test_query_filters_id_and_owner():
-    """Kiểm câu SQL PostgreSQL có cả điều kiện ID draft và ID chủ sở hữu."""
     session = MagicMock()
     DraftRepository(session).find_owned('draft', 'owner')
     query = session.scalar.call_args.args[0].compile(dialect=postgresql.dialect())

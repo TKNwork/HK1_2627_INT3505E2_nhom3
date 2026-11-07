@@ -1,4 +1,3 @@
-"""Adapter gọi provider hỗ trợ Chat Completions với kết quả JSON."""
 import json
 import httpx
 from ..config import Settings
@@ -6,18 +5,12 @@ from ..schemas.extractions import ExtractionFields, ExtractionRequest
 
 
 class LLMClient:
-    """Gửi nội dung và schema tới LLM; không lưu dữ liệu hoặc truy cập DB của Core."""
     def __init__(self, settings: Settings, transport=None) -> None:
-        """Nhận cấu hình provider và transport tùy chọn để kiểm thử không gọi mạng thật."""
         self.settings = settings
         self.transport = transport
 
     async def extract(self, body: ExtractionRequest, request_id: str) -> ExtractionFields:
-        """Gọi LLM bằng body có câu tiếng Việt, timezone và mốc tham chiếu.
-
-        Truyền request_id qua header, yêu cầu JSON rồi kiểm tra bằng ExtractionFields.
-        Trả đối tượng fields nếu hợp lệ; lỗi HTTP, timeout, JSON hoặc schema được
-        truyền lên extract_request để chọn fallback. API key lấy từ settings."""
+        """Gọi LLM và kiểm tra JSON trả về; lỗi được chuyển lên service để fallback."""
         settings = self.settings
         schema = ExtractionFields.model_json_schema(by_alias=True)
         async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds,

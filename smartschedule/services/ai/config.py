@@ -1,10 +1,8 @@
-"""Đọc cấu hình AI service từ biến môi trường và file .env của service."""
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Cấu hình kết nối nội bộ và LLM; chỉ gọi LLM khi có đủ key, base URL và model."""
     model_config = SettingsConfigDict(
         env_file=Path(__file__).with_name('.env'), env_file_encoding='utf-8', extra='ignore',
     )

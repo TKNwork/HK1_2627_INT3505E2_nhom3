@@ -1,16 +1,13 @@
-"""Gửi HTTP nội bộ và chuẩn hóa lỗi giao tiếp giữa các service."""
 from typing import Any
 import httpx
 from ..utils.errors import AppError
 
 
 class InternalClient:
-    """Client dùng chung cho các service nội bộ, có timeout và transport thay thế khi test."""
     def __init__(self, base_url: str, api_key: str, timeout: float,
                  unavailable_code: str, timeout_code: str | None = None,
                  invalid_code: str | None = None, transport: httpx.AsyncBaseTransport | None = None,
                  error_statuses: dict[int, str] | None = None) -> None:
-        """Lưu cấu hình kết nối, mã lỗi và ánh xạ HTTP riêng mà client con truyền vào."""
         self.base_url, self.api_key, self.timeout = base_url, api_key, timeout
         self.unavailable_code = unavailable_code
         self.timeout_code = timeout_code or unavailable_code
@@ -20,12 +17,7 @@ class InternalClient:
 
     async def request(self, method: str, path: str, request_id: str,
                       payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Gửi method/path với payload JSON và trả phần data của envelope.
-
-        request_id được chuyển qua X-Request-Id; khóa nội bộ đi qua X-Internal-Api-Key.
-        Lỗi được ánh xạ thành AppError theo cấu hình: response không hợp lệ là 502,
-        service không khả dụng thường là 503; timeout AI là 504. Không tự retry.
-        Hàm chỉ kiểm envelope, không kiểm schema nghiệp vụ bên trong data."""
+        """Gửi HTTP kèm khóa nội bộ và requestId; chuẩn hóa lỗi kết nối và phản hồi."""
         headers = {'X-Internal-Api-Key': self.api_key, 'X-Request-Id': request_id}
         try:
             async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout,

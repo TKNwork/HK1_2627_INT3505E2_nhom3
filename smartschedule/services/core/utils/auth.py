@@ -1,4 +1,3 @@
-"""Tiện ích mật khẩu và dependency xác thực JWT bằng tài khoản trong DB Core."""
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 import jwt
@@ -18,17 +17,14 @@ hasher = PasswordHasher()
 
 
 class CurrentUser(ApiModel):
-    """ID tài khoản đã xác thực để các route dùng khi kiểm tra quyền tài nguyên."""
     id: str
 
 
 def hash_password(password: str) -> str:
-    """Băm mật khẩu bằng Argon2; trả chuỗi hash để lưu thay mật khẩu gốc."""
     return hasher.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Đối chiếu mật khẩu với hash Argon2; hash sai định dạng hoặc không khớp trả False."""
     try:
         return hasher.verify(password_hash, password)
     except (VerificationError, InvalidHashError):
@@ -36,7 +32,6 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(user_id: str, settings: Settings) -> tuple[str, datetime]:
-    """Ký JWT HS256 chứa sub, iat, exp; trả token và thời điểm hết hạn theo settings."""
     settings.require_auth_secrets()
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(minutes=settings.jwt_expire_minutes)
@@ -45,7 +40,7 @@ def create_access_token(user_id: str, settings: Settings) -> tuple[str, datetime
 
 
 def decode_access_token(token: str, settings: Settings) -> CurrentUser:
-    """Xác minh chữ ký, hạn dùng và claim bắt buộc; trả CurrentUser từ sub hoặc báo 401."""
+    """Xác minh JWT HS256 và lấy user ID từ sub; token sai hoặc hết hạn trả 401."""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=['HS256'],
                              options={'require': ['sub', 'iat', 'exp']})
@@ -59,11 +54,7 @@ def decode_access_token(token: str, settings: Settings) -> CurrentUser:
 def get_current_user(request: Request,
                      credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
                      session: Annotated[Session, Depends(get_db)]) -> CurrentUser:
-    """Đọc Authorization Bearer, xác minh JWT rồi kiểm tra user trong DB Core.
-
-    sub trong JWT là ID tài khoản. Thiếu token, token sai/hết hạn hoặc tài khoản
-    không tồn tại đều báo 401. get_db cung cấp Session theo request. Đây là kiểm tra
-    truy cập tài nguyên, không thay thế luồng đăng nhập bằng mật khẩu."""
+    """Đọc Bearer JWT và kiểm tra tài khoản còn tồn tại trong DB Core."""
     if credentials is None or credentials.scheme.lower() != 'bearer':
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Yêu cầu JWT Bearer.')
     user = decode_access_token(credentials.credentials, request.app.state.settings)

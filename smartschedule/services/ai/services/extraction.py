@@ -1,4 +1,3 @@
-"""Trích xuất một công việc tiếng Việt bằng quy tắc ngày, giờ, thời lượng và deadline."""
 import re
 import unicodedata
 from datetime import datetime, time, timedelta
@@ -7,16 +6,13 @@ from ..schemas.extractions import ExtractionData, ExtractionFields, ExtractionRe
 
 
 def fold(text: str) -> str:
-    """Tạo chuỗi chữ thường không dấu để so mẫu; tiêu đề được lấy từ câu gốc có dấu."""
+    """Bỏ dấu và chuyển chữ thường để so mẫu; tiêu đề vẫn lấy từ câu gốc."""
     return ''.join(c for c in unicodedata.normalize('NFD', text.lower().replace('đ', 'd'))
                    if unicodedata.category(c) != 'Mn')
 
 
 def parse_date(text: str, reference: datetime):
-    """Tìm ngày từ chuỗi đã bỏ dấu, dựa trên reference trong múi giờ yêu cầu.
-
-    Hỗ trợ ngày tương đối, thứ trong tuần và ngày tường minh theo các mẫu đã viết.
-    Không nhận ra ngày thì trả None; ngày tường minh không hợp lệ có thể gây ValueError."""
+    """Đọc ngày theo mốc tham chiếu; không nhận ra trả None, ngày sai gây ValueError."""
     if 'ngay kia' in text:
         return reference.date() + timedelta(days=2)
     if 'ngay mai' in text or re.search(r'\bmai\b', text):
@@ -41,7 +37,7 @@ def parse_date(text: str, reference: datetime):
 
 
 def parse_clock(text: str):
-    """Đọc giờ/phút và buổi từ chuỗi không dấu; không thấy trả None, giờ sai gây ValueError."""
+    """Đọc giờ, phút và buổi; không có trả None, giờ sai gây ValueError."""
     match = re.search(r'\b(\d{1,2})\s*(?::|h(?=\d|\b)|gio\b)\s*(\d{1,2})?\s*(?:phut)?\s*(ruoi)?\s*(sang|chieu|toi|trua)?', text)
     if not match:
         return None
@@ -55,11 +51,7 @@ def parse_clock(text: str):
 
 
 def summarize(fields: ExtractionFields, warnings: list[Warning]) -> ExtractionData:
-    """Tính missing_fields và required_input_fields từ các giá trị đã trích xuất.
-
-    Thiếu startAt chưa bắt buộc người dùng bổ sung nếu còn có thể tìm giờ ở UC sau.
-    Title, thời lượng và thông tin ngày cần thiết được xét theo quy tắc hiện tại;
-    deadline và nhắc trước không phải trường bắt buộc."""
+    """Xác định trường còn thiếu và trường người dùng cần bổ sung."""
     missing = [alias for name, alias in [('title', 'title'), ('date', 'date'),
                ('start_at', 'startAt'), ('duration_minutes', 'durationMinutes')]
                if getattr(fields, name) is None]
@@ -72,12 +64,7 @@ def summarize(fields: ExtractionFields, warnings: list[Warning]) -> ExtractionDa
 
 def normalize(fields: ExtractionFields, body: ExtractionRequest,
               warnings: list[Warning] | None = None) -> ExtractionData:
-    """Chuẩn hóa fields theo timezone của request và tổng hợp cảnh báo.
-
-    Kiểm tra date với start_at, cảnh báo giờ đã qua hoặc kết thúc vượt deadline,
-    rồi gọi summarize. Ngày và giờ bắt đầu mâu thuẫn gây ValueError. Không truy vấn
-    lịch bận và không kiểm tra xung đột với công việc khác. Core chuyển thời điểm
-    sang UTC khi chuẩn bị lưu draft."""
+    """Đối chiếu ngày giờ theo timezone và cảnh báo quá hạn; chưa kiểm tra lịch bận."""
     warnings = list(warnings or [])
     fields.timezone = body.timezone
     zone = ZoneInfo(body.timezone)
@@ -100,13 +87,7 @@ def normalize(fields: ExtractionFields, body: ExtractionRequest,
 
 
 def extract_rules(body: ExtractionRequest) -> ExtractionData:
-    """Bóc tách câu trong body theo các mẫu tiếng Việt đã hỗ trợ.
-
-    Dùng mốc body.now theo body.timezone để hiểu ngày tương đối; tìm thời lượng,
-    giờ bắt đầu, khoảng từ–đến và deadline, giữ dấu tiếng Việt trong tiêu đề.
-    Dữ liệu thiếu hoặc mơ hồ được thể hiện bằng None và cảnh báo để người dùng xem lại.
-    Trả ExtractionData sau normalize; không hỗ trợ mọi cách diễn đạt hoặc nhiều
-    công việc trong một câu, không tự gọi LLM và không lưu database."""
+    """Trích xuất một công việc bằng các mẫu ngày, giờ, thời lượng và deadline."""
     original = unicodedata.normalize('NFC', body.source_text).strip()
     text = fold(original)
     reference = body.now.astimezone(ZoneInfo(body.timezone))
