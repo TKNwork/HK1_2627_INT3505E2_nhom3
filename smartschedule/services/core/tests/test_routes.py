@@ -4,9 +4,9 @@ import pytest
 from services.core.utils.auth import create_access_token, hash_password, verify_password
 
 TASK = {'title': 'SOA', 'durationMinutes': 90, 'timezone': 'Asia/Ho_Chi_Minh'}
-ROUTES = [
-    ('post', '/api/v1/auth/register', {'email': 'an@example.com', 'password': 'DemoPass123'}, 201),
-    ('post', '/api/v1/auth/login', {'email': 'an@example.com', 'password': 'DemoPass123'}, 200),
+
+# Routes that are stubs (tasks, drafts, calendar, telegram)
+STUB_ROUTES = [
     ('post', '/api/v1/tasks', TASK, 201),
     ('get', '/api/v1/tasks?status=pending&scheduled=true&limit=20', None, 200),
     ('get', '/api/v1/tasks/task-stub', None, 200),
@@ -30,8 +30,116 @@ def headers(settings):
             'Idempotency-Key': 'confirm-test-1'}
 
 
-@pytest.mark.parametrize('method,path,body,status', ROUTES)
-def test_all_public_stubs(client, settings, method, path, body, status):
+# ── UC-01: Register ──────────────────────────────────────────────────────
+
+def test_register_success(client):
+    response = client.post('/api/v1/auth/register',
+                           json={'email': 'new@example.com', 'password': 'DemoPass123'},
+                           headers={'X-Request-Id': 'reg-test'})
+    assert response.status_code == 201, response.text
+    data = response.json()['data']
+    assert data['user']['email'] == 'new@example.com'
+    assert data['user']['id']
+
+
+def test_register_duplicate_email(client):
+    client.post('/api/v1/auth/register',
+                json={'email': 'dup@example.com', 'password': 'DemoPass123'})
+    response = client.post('/api/v1/auth/register',
+                           json={'email': 'dup@example.com', 'password': 'OtherPass123'})
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'EMAIL_ALREADY_EXISTS'
+
+
+def test_register_normalizes_email(client):
+    response = client.post('/api/v1/auth/register',
+                           json={'email': '  Upper@Example.COM  ', 'password': 'DemoPass123'})
+    assert response.status_code == 201
+    assert response.json()['data']['user']['email'] == 'upper@example.com'
+
+
+# ── UC-02: Login ──────────────────────────────────────────────────────────
+
+def test_login_success(client):
+    client.post('/api/v1/auth/register',
+                json={'email': 'login@example.com', 'password': 'DemoPass123'})
+    response = client.post('/api/v1/auth/login',
+                           json={'email': 'login@example.com', 'password': 'DemoPass123'})
+    assert response.status_code == 200, response.text
+    data = response.json()['data']
+    assert set(data) == {'user', 'accessToken', 'refreshToken', 'expiresIn', 'expiresAt'}
+    assert data['user']['email'] == 'login@example.com'
+    assert data['expiresIn'] == 600  # 10 minutes = 600 seconds
+
+
+def test_login_wrong_password(client):
+    client.post('/api/v1/auth/register',
+                json={'email': 'wrong@example.com', 'password': 'DemoPass123'})
+    response = client.post('/api/v1/auth/login',
+                           json={'email': 'wrong@example.com', 'password': 'WrongPassword1'})
+    assert response.status_code == 401
+    assert response.json()['error']['code'] == 'INVALID_CREDENTIALS'
+
+
+def test_login_nonexistent_user(client):
+    response = client.post('/api/v1/auth/login',
+                           json={'email': 'ghost@example.com', 'password': 'DemoPass123'})
+    assert response.status_code == 401
+    assert response.json()['error']['code'] == 'INVALID_CREDENTIALS'
+
+
+def test_login_token_works_for_protected_routes(client, settings):
+    client.post('/api/v1/auth/register',
+                json={'email': 'token@example.com', 'password': 'DemoPass123'})
+    login_resp = client.post('/api/v1/auth/login',
+                             json={'email': 'token@example.com', 'password': 'DemoPass123'})
+    access_token = login_resp.json()['data']['accessToken']
+    tasks_resp = client.get('/api/v1/tasks',
+                            headers={'Authorization': f'Bearer {access_token}'})
+    assert tasks_resp.status_code == 200
+
+
+# ── Refresh token ─────────────────────────────────────────────────────────
+
+def test_refresh_token_rotation(client):
+    client.post('/api/v1/auth/register',
+                json={'email': 'refresh@example.com', 'password': 'DemoPass123'})
+    login_resp = client.post('/api/v1/auth/login',
+                             json={'email': 'refresh@example.com', 'password': 'DemoPass123'})
+    refresh_token = login_resp.json()['data']['refreshToken']
+
+    refresh_resp = client.post('/api/v1/auth/refresh',
+                               json={'refreshToken': refresh_token})
+    assert refresh_resp.status_code == 200
+    data = refresh_resp.json()['data']
+    assert set(data) == {'accessToken', 'refreshToken', 'expiresIn', 'expiresAt'}
+    assert data['refreshToken'] != refresh_token
+
+    reuse_resp = client.post('/api/v1/auth/refresh',
+                             json={'refreshToken': refresh_token})
+    assert reuse_resp.status_code == 401
+
+
+def test_logout_revokes_refresh_token(client):
+    client.post('/api/v1/auth/register',
+                json={'email': 'logout@example.com', 'password': 'DemoPass123'})
+    login_resp = client.post('/api/v1/auth/login',
+                             json={'email': 'logout@example.com', 'password': 'DemoPass123'})
+    refresh_token = login_resp.json()['data']['refreshToken']
+
+    logout_resp = client.post('/api/v1/auth/logout',
+                              json={'refreshToken': refresh_token})
+    assert logout_resp.status_code == 204
+
+    refresh_resp = client.post('/api/v1/auth/refresh',
+                               json={'refreshToken': refresh_token})
+    assert refresh_resp.status_code == 401
+
+
+# ── Stub routes ──────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize('method,path,body,status', STUB_ROUTES)
+def test_stub_routes(client, settings, method, path, body, status):
     response = client.request(method, path, json=body, headers=headers(settings))
     assert response.status_code == status, response.text
     assert response.headers['X-Request-Id'] == 'core-route-test'
@@ -42,7 +150,7 @@ def test_all_public_stubs(client, settings, method, path, body, status):
         assert response.json()['requestId'] == 'core-route-test'
 
 
-@pytest.mark.parametrize('method,path,body,status', ROUTES[2:])
+@pytest.mark.parametrize('method,path,body,status', STUB_ROUTES)
 def test_all_protected_routes_require_jwt(client, method, path, body, status):
     response = client.request(method, path, json=body)
     assert response.status_code == 401, response.text
@@ -94,18 +202,12 @@ def test_invalid_jwt(client, settings, kind):
     token = 'not-a-token'
     if kind == 'expired':
         token = jwt.encode({'sub': 'x', 'iat': datetime.now(timezone.utc)-timedelta(hours=2),
-                            'exp': datetime.now(timezone.utc)-timedelta(hours=1)},
+                            'exp': datetime.now(timezone.utc)-timedelta(hours=1),
+                            'type': 'access'},
                            settings.jwt_secret, algorithm='HS256')
     response = client.get('/api/v1/tasks', headers={'Authorization': f'Bearer {token}'})
     assert response.status_code == 401
     assert response.json()['error']['code'] == 'UNAUTHORIZED'
-
-
-def test_login_token_works(client):
-    response = client.post('/api/v1/auth/login', json={'email': 'an@example.com', 'password': 'DemoPass123'})
-    body = response.json()['data']
-    assert set(body) == {'user', 'accessToken', 'expiresAt'}
-    assert client.get('/api/v1/tasks', headers={'Authorization': 'Bearer '+body['accessToken']}).status_code == 200
 
 
 def test_password_utilities():

@@ -6,7 +6,7 @@ from services.core import models
 
 
 def test_models_compile_without_real_database():
-    assert len(Base.metadata.tables) == 5
+    assert len(Base.metadata.tables) == 6
     for table in Base.metadata.sorted_tables:
         ddl = str(CreateTable(table).compile(dialect=postgresql.dialect()))
         assert 'CREATE TABLE' in ddl
@@ -23,7 +23,7 @@ def test_foreign_keys_stay_within_service():
     if 'core' == 'core':
         assert not Base.metadata.tables['outbox_events'].c.task_id.foreign_keys
         assert not Base.metadata.tables['schedule_drafts'].c.confirmed_task_id.foreign_keys
-        assert sum(len(t.foreign_keys) for t in Base.metadata.tables.values()) == 3
+        assert sum(len(t.foreign_keys) for t in Base.metadata.tables.values()) == 4
 
 
 def test_business_unique_constraints():
