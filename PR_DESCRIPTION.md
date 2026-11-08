@@ -76,7 +76,7 @@ Tất cả đường dẫn dưới đây tính từ `smartschedule/`.
 - `README.md`, `services/core/README.md`, `services/ai/README.md`: phạm vi UC-09,
   ví dụ request, cách cấu hình/chạy/test và các phần skeleton còn lại.
 - `PR_DESCRIPTION.md` (gốc repository): mô tả thay đổi và kiểm thử, không có hàm.
-- Không sửa file trong docs/, task-api/, model hoặc schema database. `get_current_user` được cập nhật để kiểm tra tài khoản còn tồn tại.
+- Không sửa file trong docs/ hoặc task-api/; Auth bổ sung bảng refresh_tokens vào model. `get_current_user` được cập nhật để kiểm tra tài khoản còn tồn tại.
 
 ## Test và nơi gọi các hàm test
 
@@ -116,7 +116,7 @@ Các hàm `test_*` dưới đây được pytest gọi; các case có tham số 
 
 ## Kết quả kiểm tra
 
-- `python -m pytest -q`: **163 passed**.
+- `python -m pytest -q`: **170 passed**.
 - `python -m scripts.check_contract`: **22/22 endpoint khớp method/path/operationId**.
 - `python -m compileall -q services scripts`: pass.
 - `git diff --check`: pass.
@@ -130,9 +130,7 @@ Các hàm `test_*` dưới đây được pytest gọi; các case có tham số 
 
 - Hoàn thành phần triển khai UC-09; GET được nối DB để đọc lại và kiểm chứng bản nháp vừa tạo.
   UC-10 sửa draft, UC-11 tìm/chọn giờ và UC-12 confirm vẫn cần PR riêng; các thân route này còn fixture.
-- Auth hiện tại là skeleton: register/login chưa lưu/verify user thật. UC-09 yêu cầu user tồn tại
-  trong bảng users, không tự tạo user theo JWT. Cần tích hợp nhánh Auth hoặc tài khoản dev đã seed
-  để chạy đầu-cuối với PostgreSQL. Không bổ sung Google OAuth.
+- Auth đã được cập nhật: register lưu user, login kiểm mật khẩu và cấp JWT/refresh token; có refresh và logout. UC-09 dùng user đã lưu trong bảng users. Chưa kiểm thử đầu-cuối với PostgreSQL thật.
 - Fallback có phạm vi một công việc với các mẫu ngày/giờ đã mô tả trong AI README;
   không cam kết hiểu mọi câu tiếng Việt. Thiếu/mơ hồ trả cảnh báo để người dùng xem lại.
 - Reference time là ngữ cảnh diễn giải, không điều khiển TTL; TTL luôn 30 phút từ giờ máy chủ.
@@ -146,26 +144,43 @@ lấy user id từ claim sub rồi session.get(Users, user.id) trong DB Core.
 User không tồn tại trả 401 trước khi truy cập draft. Không có OAuth/Google.
 Kiểm tra user_exists trong create_from_text vẫn là kiểm tra phòng vệ trước gọi AI/lưu dữ liệu.
 Các thao tác PATCH/suggestions/confirm vẫn trả fixture, không sửa draft, tìm lịch hoặc tạo task thật.
-Trạng thái production không lưu session đăng nhập trong bộ nhớ; dữ liệu giả trong app.state chỉ có trong test.
+Dữ liệu draft giả trong app.state chỉ dùng trong test; Auth dùng SQLite trong bộ test.
 
 | File | Hàm thêm/sửa sau kiểm toán | Chức năng | Được gọi ở đâu |
 |---|---|---|---|
 | smartschedule/services/core/utils/auth.py | get_current_user | Xác minh JWT rồi kiểm user tồn tại trong users | Dependency của router bảo vệ, create_draft và load_owned_draft; get_db cung cấp Session |
-| smartschedule/services/core/tests/conftest.py | app | Override get_db bằng session mock có tập user; vẫn chạy Auth/JWT thật | Fixture client của pytest |
+| smartschedule/services/core/tests/conftest.py | app | Dùng SQLite cho Auth, repository và AI giả cho draft; chạy Auth/JWT thật | Fixture client của pytest |
 | smartschedule/services/core/tests/test_uc09.py | test_deleted_user_cannot_access_draft | User đã xóa bị chặn 401 ở GET/PATCH/suggestions/confirm | pytest, 4 case |
-| smartschedule/services/core/tests/test_uc09.py | test_auth_queries_local_user_from_jwt_subject | Kiểm SELECT đúng Users và sub; dependency chỉ gọi một lần/request | pytest |
+| smartschedule/services/core/tests/test_uc09.py | test_auth_queries_local_user_from_jwt_subject | Kiểm JWT hợp lệ đọc được draft của user tương ứng trong SQLite | pytest |
 | smartschedule/services/core/tests/test_uc09.py | test_invalid_token_does_not_query_users | JWT sai trả 401 trước truy vấn users | pytest |
 
 Các hàm có sẵn không thay đổi trong file auth.py: hash_password/verify_password là tiện ích
-Argon2 cho luồng Auth, create_access_token được login skeleton gọi; decode_access_token được
-get_current_user gọi; chưa triển khai đăng ký/đăng nhập thật trong PR UC-09.
+Argon2 cho luồng Auth, create_access_token được auth_service gọi; decode_access_token được
+get_current_user gọi; register/login hiện gọi các hàm này qua auth_service.
 Các hàm không thay đổi trong routers/drafts.py: require_idempotency_key do dependency confirm gọi.
 Fixture settings/client trong conftest.py giữ nguyên; Settings trong ai/config.py chỉ thêm thuộc tính,
 không có hàm mới. Các DTO chỉ khai báo field, không có hàm mới ngoài clean_text đã liệt kê.
 
-### Danh sách file thực tế theo git diff origin/main...HEAD
+## Thay đổi Auth được đồng bộ từ nhánh nhóm
 
-Danh sách thay đổi so với nhánh main:
+| File | Hàm / thành phần | Chức năng và nơi gọi |
+|---|---|---|
+| `core/routers/auth.py` | `register`, `login` | Nhận yêu cầu HTTP, gọi `register_user` và `login_user` rồi trả envelope. |
+| `core/routers/auth.py` | `refresh`, `logout` | Gọi `refresh_tokens` hoặc `revoke_refresh_token` cho API làm mới và đăng xuất. |
+| `core/services/auth_service.py` | `_build_token_pair` | Tạo access/refresh token, lưu hash refresh trong session; được `login_user` và `refresh_tokens` gọi. |
+| `core/services/auth_service.py` | `register_user` | Chuẩn hóa email, băm mật khẩu, lưu user và xử lý email trùng; được route register gọi. |
+| `core/services/auth_service.py` | `login_user` | Tìm user, kiểm mật khẩu, tạo cặp token; được route login gọi. |
+| `core/services/auth_service.py` | `refresh_tokens` | Khóa token, xoay token và xử lý token bị thu hồi; được route refresh gọi. |
+| `core/services/auth_service.py` | `revoke_refresh_token` | Thu hồi refresh token; được route logout gọi. |
+| `core/utils/auth.py` | `create_access_token`, `decode_access_token`, `get_current_user` | Tạo/kiểm access JWT và kiểm user; được service Auth và các route bảo vệ gọi. |
+| `core/utils/auth.py` | `generate_refresh_token`, `hash_refresh_token`, `get_refresh_expiry` | Tạo token ngẫu nhiên, hash và tính hạn; được service Auth gọi. |
+| `core/config.py`, `core/.env.example` | Cấu hình token | Thời hạn access/refresh và cấu hình Core. |
+| `core/models.py` | `RefreshTokens` | Bảng lưu hash, user, hạn và trạng thái thu hồi của refresh token. |
+| `core/schemas/auth.py` | Các DTO Auth | Kiểm tra đầu vào và định dạng response của register/login/refresh/logout. |
+| `core/requirements.txt` | pydantic[email] | Bổ sung thư viện kiểm tra email. |
+| `core/tests/conftest.py`, `test_routes.py`, `test_models.py`, `test_uc09.py` | Fixture và test | Kiểm Auth dùng SQLite, draft với repository/AI giả; test_registered_user_creates_draft kiểm tra register → login → tạo/đọc draft. |
+
+## Danh sách file theo diff với origin/main
 
 ```text
 A	PR_DESCRIPTION.md
@@ -179,16 +194,25 @@ M	smartschedule/services/ai/schemas/extractions.py
 A	smartschedule/services/ai/services/extraction.py
 A	smartschedule/services/ai/services/provider.py
 A	smartschedule/services/ai/tests/test_extraction.py
+M	smartschedule/services/core/.env.example
 M	smartschedule/services/core/README.md
 M	smartschedule/services/core/clients/ai_client.py
 M	smartschedule/services/core/clients/http_client.py
+M	smartschedule/services/core/config.py
+M	smartschedule/services/core/models.py
 A	smartschedule/services/core/repositories/__init__.py
 A	smartschedule/services/core/repositories/drafts.py
+M	smartschedule/services/core/requirements.txt
+M	smartschedule/services/core/routers/auth.py
 M	smartschedule/services/core/routers/drafts.py
+M	smartschedule/services/core/schemas/auth.py
 M	smartschedule/services/core/schemas/drafts.py
+A	smartschedule/services/core/services/auth_service.py
 A	smartschedule/services/core/services/drafts.py
 M	smartschedule/services/core/tests/conftest.py
 A	smartschedule/services/core/tests/test_draft_repository.py
+M	smartschedule/services/core/tests/test_models.py
+M	smartschedule/services/core/tests/test_routes.py
 A	smartschedule/services/core/tests/test_uc09.py
 M	smartschedule/services/core/utils/auth.py
 ```

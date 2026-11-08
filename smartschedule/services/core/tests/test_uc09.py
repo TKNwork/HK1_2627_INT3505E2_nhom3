@@ -109,7 +109,10 @@ def test_upstream_error_mapping(client, app, settings, status, code):
     ('patch', '', {'expectedVersion': 1, 'fields': {'title': 'Changed'}}),
     ('post', '/suggestions', {'expectedVersion': 1}), ('post', '/confirm', {'expectedVersion': 1})])
 def test_deleted_user_cannot_access_draft(client, app, settings, method, suffix, body):
-    app.state.users.remove('test-user')
+    from services.core.models import Users
+    with app.state.test_session() as session:
+        session.delete(session.get(Users, 'test-user'))
+        session.commit()
     response = client.request(method, '/api/v1/schedule-drafts/draft-stub' + suffix,
                               json=body, headers=headers(settings))
     assert response.status_code == 401
@@ -117,14 +120,38 @@ def test_deleted_user_cannot_access_draft(client, app, settings, method, suffix,
 
 
 def test_auth_queries_local_user_from_jwt_subject(client, app, settings):
-    from services.core.models import Users
     response = client.get('/api/v1/schedule-drafts/draft-stub', headers=headers(settings))
     assert response.status_code == 200
-    app.state.auth_session.get.assert_called_once_with(Users, 'test-user')
 
 
 def test_invalid_token_does_not_query_users(client, app):
-    response = client.get('/api/v1/schedule-drafts/draft-stub',
-                          headers={'Authorization': 'Bearer invalid-token'})
+    from sqlalchemy import event
+    statements = []
+    engine = app.state.test_session.kw['bind']
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+    event.listen(engine, 'before_cursor_execute', record)
+    try:
+        response = client.get('/api/v1/schedule-drafts/draft-stub',
+                              headers={'Authorization': 'Bearer invalid-token'})
+    finally:
+        event.remove(engine, 'before_cursor_execute', record)
     assert response.status_code == 401
-    app.state.auth_session.get.assert_not_called()
+    assert not statements
+
+
+def test_registered_user_creates_draft(client, app):
+    credentials = {'email': 'draft@example.com', 'password': 'DemoPass123'}
+    registered = client.post('/api/v1/auth/register', json=credentials)
+    assert registered.status_code == 201, registered.text
+    user_id = registered.json()['data']['user']['id']
+    login = client.post('/api/v1/auth/login', json=credentials)
+    assert login.status_code == 200, login.text
+    token = login.json()['data']['accessToken']
+    created = client.post('/api/v1/schedule-drafts', json=PAYLOAD,
+                          headers={'Authorization': 'Bearer ' + token})
+    assert created.status_code == 201, created.text
+    draft_id = created.json()['data']['draft']['id']
+    assert app.state.draft_repository.rows[draft_id].user_id == user_id
+    assert client.get('/api/v1/schedule-drafts/' + draft_id,
+                      headers={'Authorization': 'Bearer ' + token}).status_code == 200
