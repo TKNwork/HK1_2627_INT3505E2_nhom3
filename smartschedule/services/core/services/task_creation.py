@@ -7,6 +7,8 @@ from ..models import Tasks, OutboxEvents, new_id
 from ..schemas.tasks import CreateTask, Task
 from ..clients.scheduling_client import SchedulingClient
 from ..utils.errors import AppError, ErrorCode
+from types import SimpleNamespace
+from typing import Any, Dict, List
 
 def calculate_end_at(body: CreateTask):
     """Tính giờ kết thúc; task không có startAt thì endAt cũng None."""
@@ -35,6 +37,8 @@ def build_conflict_payload(candidate, busy_tasks):
 
 async def check_schedule_conflict(
     body: CreateTask,
+    end_at: Any,
+    busy_tasks: List[Any],
     scheduling_client: SchedulingClient,
     request_id: str,
 ) -> None:
