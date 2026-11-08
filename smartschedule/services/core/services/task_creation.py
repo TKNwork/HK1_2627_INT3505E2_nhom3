@@ -8,7 +8,6 @@ from ..schemas.tasks import CreateTask, Task
 from ..clients.scheduling_client import SchedulingClient
 from ..utils.errors import AppError, ErrorCode
 
-
 def calculate_end_at(body: CreateTask):
     """Tính giờ kết thúc; task không có startAt thì endAt cũng None."""
     if body.start_at is None:
@@ -34,27 +33,36 @@ def build_conflict_payload(candidate, busy_tasks):
         ],
     }
 
-
 async def check_schedule_conflict(
     body: CreateTask,
-    end_at,
-    busy_tasks,
     scheduling_client: SchedulingClient,
     request_id: str,
-):
+) -> None:
     """Gửi candidate và lịch bận sang Scheduling để kiểm tra."""
-    from types import SimpleNamespace
-
+    
     candidate = SimpleNamespace(
         start_at=body.start_at,
         end_at=end_at,
     )
 
     payload = build_conflict_payload(candidate, busy_tasks)
-
     result = await scheduling_client.conflicts(payload, request_id)
 
-    if result.get("hasConflict"):
+    # Validate schema response từ Scheduling service
+    if (
+        not isinstance(result, dict)
+        or "hasConflict" not in result
+        or "conflicts" not in result
+        or not isinstance(result["hasConflict"], bool)
+        or not isinstance(result["conflicts"], list)
+    ):
+        raise AppError(
+            ErrorCode.INTERNAL_SERVER_ERROR,
+            500,
+            "Phản hồi từ dịch vụ Lịch trình (Scheduling) không hợp lệ.",
+        )
+
+    if result["hasConflict"]:
         raise AppError(
             ErrorCode.SCHEDULE_CONFLICT,
             409,
@@ -63,9 +71,11 @@ async def check_schedule_conflict(
                 {
                     "field": "startAt",
                     "reason": "Khoảng thời gian đã chọn có xung đột.",
+                    "conflicts": result["conflicts"],  # Đưa danh sách xung đột vào chi tiết lỗi nếu cần
                 }
             ],
         )
+
 
 
 def build_task_response(task: Tasks) -> Task:
@@ -131,17 +141,18 @@ async def create_manual_task(
 
     now = datetime.now(timezone.utc)
 
-    with session.begin():
-        # Khóa theo user để hai request UC-03 không cùng vượt qua
-        # bước kiểm tra lịch rồi cùng lưu task trùng nhau.
-        if body.start_at is not None:
-            session.execute(
-                text(
-                    "SELECT pg_advisory_xact_lock("
-                    "hashtextextended(:user_id, 0))"
-                ),
-                {"user_id": user_id},
-            )
+    async with session.begin():
+        await session.execute(
+            text(
+                """
+                SELECT pg_advisory_xact_lock(
+                    hashtextextended(:user_id, 0)
+                )
+                """
+            ),
+            {"user_id": str(user_id)},
+        )
+
 
             busy_tasks = session.scalars(
                 select(Tasks).where(
