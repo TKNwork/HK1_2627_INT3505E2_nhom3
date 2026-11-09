@@ -7,6 +7,9 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+from ..database import get_db
+from ..models import Users
 from ..config import Settings
 from ..schemas.base import ApiModel
 from .errors import AppError, ErrorCode
@@ -43,6 +46,7 @@ def create_access_token(user_id: str, settings: Settings) -> tuple[str, datetime
 
 
 def decode_access_token(token: str, settings: Settings) -> CurrentUser:
+    """Xác minh JWT HS256 và lấy user ID từ sub; token sai hoặc hết hạn trả 401."""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=['HS256'],
                              options={'require': ['sub', 'iat', 'exp']})
@@ -70,8 +74,16 @@ def get_refresh_expiry(settings: Settings) -> datetime:
     return datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_expire_days)
 
 
-def get_current_user(request: Request,
-                     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]) -> CurrentUser:
+def get_current_user(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    session: Annotated[Session, Depends(get_db)],
+) -> CurrentUser:
     if credentials is None or credentials.scheme.lower() != 'bearer':
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Yêu cầu JWT Bearer.')
-    return decode_access_token(credentials.credentials, request.app.state.settings)
+
+    user = decode_access_token(credentials.credentials, request.app.state.settings)
+    if session.get(Users, user.id) is None:
+        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
+
+    return user
