@@ -158,23 +158,23 @@ async def create_manual_task(
         )
 
 
-            busy_tasks = session.scalars(
-                select(Tasks).where(
-                    Tasks.user_id == user_id,
-                    Tasks.start_at.is_not(None),
-                    Tasks.end_at.is_not(None),
-                    Tasks.start_at < end_at,
-                    Tasks.end_at > body.start_at,
-                )
-            ).all()
-
-            await check_schedule_conflict(
-                body,
-                end_at,
-                busy_tasks,
-                scheduling_client,
-                request_id,
+        busy_tasks = session.scalars(
+            select(Tasks).where(
+                Tasks.user_id == user_id,
+                Tasks.start_at.is_not(None),
+                Tasks.end_at.is_not(None),
+                Tasks.start_at < end_at,
+                Tasks.end_at > body.start_at,
             )
+        ).all()
+
+        await check_schedule_conflict(
+            body,
+            end_at,
+            busy_tasks,
+            scheduling_client,
+            request_id,
+        )
 
         task = Tasks(
             user_id=user_id,
