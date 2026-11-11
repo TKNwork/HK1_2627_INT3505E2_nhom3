@@ -21,13 +21,18 @@ router = APIRouter(prefix='/api/v1/tasks', tags=['Tasks'], dependencies=[Depends
     response_model=Envelope[TaskData],
     operation_id="API-03",
 )
+<<<<<<< HEAD
 async def create_task(
+=======
+def create_task(
+>>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
     body: CreateTask,
     request: Request,
     user: Annotated[CurrentUser, Depends(get_current_user)],
     session: Annotated[Session, Depends(get_db)],
 ) -> dict:
     """UC-03: tạo công việc thủ công."""
+<<<<<<< HEAD
 
     scheduling_client = SchedulingClient(request.app.state.settings)
 
@@ -40,7 +45,20 @@ async def create_task(
     )
 
     return success(request, TaskData(task=task))
+=======
+>>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
 
+    scheduling_client = SchedulingClient(request.app.state.settings)
+
+    task = create_manual_task(
+        body=body,
+        user_id=user.id,
+        session=session,
+        scheduling_client=scheduling_client,
+        request_id=get_request_id(request),
+    )
+
+    return success(request, TaskData(task=task))
 
 @router.get('', response_model=Envelope[TaskListData], operation_id='API-04')
 def list_tasks(request: Request, status: Literal['pending', 'completed'] | None = None,

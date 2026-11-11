@@ -41,11 +41,19 @@ def db_engine(settings):
 
     from services.core import models  # noqa: F401 – register models
 
-    # Tạo các bảng cần thiết cho auth (users & refresh_tokens)
-    auth_tables = [models.Users.__table__, models.RefreshTokens.__table__]
-    Base.metadata.create_all(engine, tables=auth_tables)
+    # Tạo tất cả các bảng (trước đây chỉ tạo users & refresh_tokens).
+    Base.metadata.create_all(engine)
+
+    # User khớp với token trong test_routes.headers(), cần cho khóa ngoại tasks.user_id.
+    with engine.begin() as conn:
+        conn.execute(models.Users.__table__.insert().values(
+            id='test-user',
+            email='test-user@example.com',
+            password_hash='not-a-real-hash',
+        ))
+
     yield engine
-    Base.metadata.drop_all(engine, tables=auth_tables)
+    Base.metadata.drop_all(engine)
     engine.dispose()
 
 

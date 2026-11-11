@@ -11,6 +11,10 @@ class Slot(ApiModel):
         if self.end_at <= self.start_at:
             raise ValueError("endAt phải lớn hơn startAt.")
         return self
+<<<<<<< HEAD
+=======
+
+>>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
 
 class BusySlot(Slot):
     task_id: str

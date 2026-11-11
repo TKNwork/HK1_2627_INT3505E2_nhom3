@@ -3,9 +3,11 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Any
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from .database import Base
+
+JsonType = JSON().with_variant(JSONB(), 'postgresql')
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -61,8 +63,8 @@ class Tasks(Base):
         CheckConstraint('end_at IS NULL OR deadline_at IS NULL OR end_at <= deadline_at', name="ck_tasks_deadline"),
         CheckConstraint('reminder_minutes IS NULL OR reminder_minutes IN (5, 10, 15, 30)', name="ck_tasks_reminder"),
         CheckConstraint('version >= 1', name="ck_tasks_version"),
-        CheckConstraint('char_length(btrim(title)) BETWEEN 1 AND 200', name="ck_tasks_title"),
-        CheckConstraint("end_at IS NULL OR end_at = start_at + duration_minutes * INTERVAL '1 minute'", name="ck_tasks_duration_matches"),
+        CheckConstraint('char_length(btrim(title)) BETWEEN 1 AND 200', name="ck_tasks_title").ddl_if(dialect='postgresql'),
+        CheckConstraint("end_at IS NULL OR end_at = start_at + duration_minutes * INTERVAL '1 minute'", name="ck_tasks_duration_matches").ddl_if(dialect='postgresql'),
         Index('ix_tasks_user_start', 'user_id', 'start_at'),
         Index('ix_tasks_user_created_id', 'user_id', 'created_at', 'id'),
     )
@@ -72,11 +74,11 @@ class ScheduleDrafts(Base):
     id: Mapped[str] = mapped_column(String(128), nullable=False, primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(String(128), ForeignKey('users.id'), nullable=False)
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
-    fields: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    missing_fields: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
-    required_input_fields: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
-    warnings: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
-    suggestions: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    fields: Mapped[dict[str, Any]] = mapped_column(JsonType, nullable=False)
+    missing_fields: Mapped[list[Any]] = mapped_column(JsonType, nullable=False, default=list)
+    required_input_fields: Mapped[list[Any]] = mapped_column(JsonType, nullable=False, default=list)
+    warnings: Mapped[list[Any]] = mapped_column(JsonType, nullable=False, default=list)
+    suggestions: Mapped[list[Any]] = mapped_column(JsonType, nullable=False, default=list)
     state: Mapped[str] = mapped_column(String(32), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     confirmed_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -95,7 +97,7 @@ class IdempotencyRecords(Base):
     idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     response_status: Mapped[int] = mapped_column(Integer, nullable=False)
-    response_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    response_data: Mapped[dict[str, Any]] = mapped_column(JsonType, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
@@ -108,7 +110,7 @@ class OutboxEvents(Base):
     event_type: Mapped[str] = mapped_column(String(255), nullable=False)
     task_id: Mapped[str] = mapped_column(String(128), nullable=False)
     task_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JsonType, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

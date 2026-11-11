@@ -1,5 +1,5 @@
 from typing import Annotated, Literal
-from pydantic import AfterValidator, AwareDatetime, Field
+from pydantic import AfterValidator, AwareDatetime, Field, StringConstraints
 from .base import ApiModel, validate_timezone
 
 Duration = Annotated[int, Field(strict=True, ge=1, le=1440)]
@@ -8,10 +8,17 @@ ReminderMinutes = Literal[5, 10, 15, 30]
 TimezoneName = Annotated[str, AfterValidator(validate_timezone)]
 Title = Annotated[
     str,
+<<<<<<< HEAD
     Field(
         min_length=1,
         max_length=200,
         strip_whitespace=True,
+=======
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=200,
+>>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
     ),
 ]
 
