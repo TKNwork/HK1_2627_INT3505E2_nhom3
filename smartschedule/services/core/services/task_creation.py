@@ -1,12 +1,7 @@
-<<<<<<< HEAD
-
-from datetime import datetime, timedelta, timezone
-=======
 import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -14,12 +9,7 @@ from ..models import Tasks, OutboxEvents, new_id
 from ..schemas.tasks import CreateTask, Task
 from ..clients.scheduling_client import SchedulingClient
 from ..utils.errors import AppError, ErrorCode
-<<<<<<< HEAD
-from types import SimpleNamespace
-from typing import Any, Dict, List
-=======
 
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
 
 def calculate_end_at(body: CreateTask):
     """Tính giờ kết thúc; task không có startAt thì endAt cũng None."""
@@ -46,17 +36,6 @@ def build_conflict_payload(candidate, busy_tasks):
         ],
     }
 
-<<<<<<< HEAD
-async def check_schedule_conflict(
-    body: CreateTask,
-    end_at: Any,
-    busy_tasks: List[Any],
-    scheduling_client: SchedulingClient,
-    request_id: str,
-) -> None:
-    """Gửi candidate và lịch bận sang Scheduling để kiểm tra."""
-    
-=======
 
 def check_schedule_conflict(
     body: CreateTask,
@@ -70,37 +49,16 @@ def check_schedule_conflict(
     Hàm đồng bộ: chạy trong worker thread của route (không có event loop),
     nên dùng ``asyncio.run`` để gọi client bất đồng bộ.
     """
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
     candidate = SimpleNamespace(
         start_at=body.start_at,
         end_at=end_at,
     )
 
     payload = build_conflict_payload(candidate, busy_tasks)
-<<<<<<< HEAD
-    result = await scheduling_client.conflicts(payload, request_id)
-
-    # Validate schema response từ Scheduling service
-    if (
-        not isinstance(result, dict)
-        or "hasConflict" not in result
-        or "conflicts" not in result
-        or not isinstance(result["hasConflict"], bool)
-        or not isinstance(result["conflicts"], list)
-    ):
-        raise AppError(
-            ErrorCode.INTERNAL_SERVER_ERROR,
-            500,
-            "Phản hồi từ dịch vụ Lịch trình (Scheduling) không hợp lệ.",
-        )
-
-    if result["hasConflict"]:
-=======
 
     result = asyncio.run(scheduling_client.conflicts(payload, request_id))
 
     if result.get("hasConflict"):
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
         raise AppError(
             ErrorCode.SCHEDULE_CONFLICT,
             409,
@@ -109,19 +67,11 @@ def check_schedule_conflict(
                 {
                     "field": "startAt",
                     "reason": "Khoảng thời gian đã chọn có xung đột.",
-<<<<<<< HEAD
-                    "conflicts": result["conflicts"],  # Đưa danh sách xung đột vào chi tiết lỗi nếu cần
-=======
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
                 }
             ],
         )
 
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
 def build_task_response(task: Tasks) -> Task:
     """Chuyển SQLAlchemy Tasks thành DTO trả về API."""
     return Task(
@@ -141,15 +91,11 @@ def build_task_response(task: Tasks) -> Task:
 
 
 def build_reminder_event(task: Tasks) -> dict:
-<<<<<<< HEAD
-    """Tạo payload theo schema ReminderEvent của Notification."""
-=======
     """Tạo payload theo schema ReminderEvent của Notification.
 
     Toàn bộ payload dùng snake_case (kể cả phần ``reminder``) để thống nhất
     với các khóa cấp ngoài; Notification nhận được cả snake_case lẫn camelCase.
     """
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
     return {
         "event_id": new_id(),
         "event_type": "reminder_changed",
@@ -159,24 +105,14 @@ def build_reminder_event(task: Tasks) -> dict:
         "action": "upsert",
         "reminder": {
             "title": task.title,
-<<<<<<< HEAD
-            "startAt": task.start_at.isoformat(),
-            "timezone": task.timezone,
-            "reminderMinutes": task.reminder_minutes,
-=======
             "start_at": task.start_at.isoformat(),
             "timezone": task.timezone,
             "reminder_minutes": task.reminder_minutes,
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
         },
     }
 
 
-<<<<<<< HEAD
-async def create_manual_task(
-=======
 def create_manual_task(
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
     body: CreateTask,
     user_id: str,
     session: Session,
@@ -185,13 +121,10 @@ def create_manual_task(
 ) -> Task:
     """
     UC-03: kiểm tra lịch, lưu task và outbox trong cùng transaction.
-<<<<<<< HEAD
-=======
 
     Hàm đồng bộ, dùng Session đồng bộ do ``get_db`` cấp và phải được gọi từ
     route ``def`` (FastAPI chạy trong threadpool). Không gọi từ ``async def``:
     lệnh chờ advisory lock sẽ chặn event loop và làm treo các request khác.
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
     """
 
     end_at = calculate_end_at(body)
@@ -210,38 +143,6 @@ def create_manual_task(
 
     now = datetime.now(timezone.utc)
 
-<<<<<<< HEAD
-    async with session.begin():
-        await session.execute(
-            text(
-                """
-                SELECT pg_advisory_xact_lock(
-                    hashtextextended(:user_id, 0)
-                )
-                """
-            ),
-            {"user_id": str(user_id)},
-        )
-
-
-        busy_tasks = session.scalars(
-            select(Tasks).where(
-                Tasks.user_id == user_id,
-                Tasks.start_at.is_not(None),
-                Tasks.end_at.is_not(None),
-                Tasks.start_at < end_at,
-                Tasks.end_at > body.start_at,
-            )
-        ).all()
-
-        await check_schedule_conflict(
-            body,
-            end_at,
-            busy_tasks,
-            scheduling_client,
-            request_id,
-        )
-=======
     with session.begin():
         # Khóa theo user để hai request UC-03 không cùng vượt qua
         # bước kiểm tra lịch rồi cùng lưu task trùng nhau.
@@ -276,7 +177,6 @@ def create_manual_task(
                 scheduling_client,
                 request_id,
             )
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
 
         task = Tasks(
             user_id=user_id,
@@ -317,8 +217,4 @@ def create_manual_task(
         session.flush()
         result = build_task_response(task)
 
-<<<<<<< HEAD
     return result
-=======
-    return result
->>>>>>> 5672845 (feat(uc03): complete use case 03 - implemented by user)
