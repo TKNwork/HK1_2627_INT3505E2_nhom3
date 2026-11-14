@@ -1,7 +1,14 @@
 import os
 import sys
-from pathlib import Path
 import pytest
+import asyncio
+from pathlib import Path
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker,
+)
+from services.core.database import get_async_db
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -18,11 +25,25 @@ from services.core.main import create_app
 
 
 @pytest.fixture
-def settings() -> Settings:
-    return Settings(_env_file=None, jwt_secret='test-jwt-secret-32-characters-minimum',
-                    internal_api_key='test-internal-key-32-characters-minimum',
-                    database_url='sqlite://')
+def settings(tmp_path):
+    return Settings(
+        _env_file=None,
+        jwt_secret='test-jwt-secret-32-characters-minimum',
+        internal_api_key='test-internal-key-32-characters-minimum',
+        database_url=f"sqlite:///{(tmp_path / 'core.db').as_posix()}",
+    )
 
+@pytest.fixture
+def async_db_engine(settings):
+    url = make_url(settings.database_url).set(
+        drivername="sqlite+aiosqlite"
+    )
+
+    engine = create_async_engine(url)
+
+    yield engine
+
+    asyncio.run(engine.dispose())
 
 @pytest.fixture
 def db_engine(settings):
@@ -66,10 +87,21 @@ def db_session(db_engine):
 
 
 @pytest.fixture
-def app(settings, db_engine):
-    application = create_app(settings, init_database_on_startup=False)
+def app(settings, db_engine, async_db_engine):
+    application = create_app(
+        settings,
+        init_database_on_startup=False,
+    )
 
-    TestSession = sessionmaker(bind=db_engine, expire_on_commit=False)
+    TestSession = sessionmaker(
+        bind=db_engine,
+        expire_on_commit=False,
+    )
+
+    TestAsyncSession = async_sessionmaker(
+        bind=async_db_engine,
+        expire_on_commit=False,
+    )
 
     def override_get_db():
         session = TestSession()
@@ -78,7 +110,13 @@ def app(settings, db_engine):
         finally:
             session.close()
 
+    async def override_get_async_db():
+        async with TestAsyncSession() as session:
+            yield session
+
     application.dependency_overrides[get_db] = override_get_db
+    application.dependency_overrides[get_async_db] = override_get_async_db
+
     return application
 
 

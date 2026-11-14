@@ -1,14 +1,11 @@
-import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-
-from sqlalchemy import select, text
-from sqlalchemy.orm import Session
-
 from ..models import Tasks, OutboxEvents, new_id
 from ..schemas.tasks import CreateTask, Task
 from ..clients.scheduling_client import SchedulingClient
 from ..utils.errors import AppError, ErrorCode
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def calculate_end_at(body: CreateTask):
@@ -37,26 +34,27 @@ def build_conflict_payload(candidate, busy_tasks):
     }
 
 
-def check_schedule_conflict(
+async def check_schedule_conflict(
     body: CreateTask,
     end_at,
     busy_tasks,
     scheduling_client: SchedulingClient,
     request_id: str,
 ):
-    """Gửi candidate và lịch bận sang Scheduling để kiểm tra.
-
-    Hàm đồng bộ: chạy trong worker thread của route (không có event loop),
-    nên dùng ``asyncio.run`` để gọi client bất đồng bộ.
-    """
     candidate = SimpleNamespace(
         start_at=body.start_at,
         end_at=end_at,
     )
 
-    payload = build_conflict_payload(candidate, busy_tasks)
+    payload = build_conflict_payload(
+        candidate,
+        busy_tasks,
+    )
 
-    result = asyncio.run(scheduling_client.conflicts(payload, request_id))
+    result = await scheduling_client.conflicts(
+        payload,
+        request_id,
+    )
 
     if result.get("hasConflict"):
         raise AppError(
@@ -112,10 +110,10 @@ def build_reminder_event(task: Tasks) -> dict:
     }
 
 
-def create_manual_task(
+async def create_manual_task(
     body: CreateTask,
     user_id: str,
-    session: Session,
+    session: AsyncSession,
     scheduling_client: SchedulingClient,
     request_id: str,
 ) -> Task:
@@ -143,13 +141,13 @@ def create_manual_task(
 
     now = datetime.now(timezone.utc)
 
-    with session.begin():
+    async with session.begin():
         # Khóa theo user để hai request UC-03 không cùng vượt qua
         # bước kiểm tra lịch rồi cùng lưu task trùng nhau.
         if body.start_at is not None:
             # Advisory lock chỉ có trên PostgreSQL; bỏ qua với SQLite khi test.
             if session.get_bind().dialect.name == "postgresql":
-                session.execute(
+                await session.execute(
                     text(
                         """
                         SELECT pg_advisory_xact_lock(
@@ -160,17 +158,19 @@ def create_manual_task(
                     {"user_id": str(user_id)},
                 )
 
-            busy_tasks = session.scalars(
-                select(Tasks).where(
-                    Tasks.user_id == user_id,
-                    Tasks.start_at.is_not(None),
-                    Tasks.end_at.is_not(None),
-                    Tasks.start_at < end_at,
-                    Tasks.end_at > body.start_at,
+            busy_tasks = (
+                await session.scalars(
+                    select(Tasks).where(
+                        Tasks.user_id == user_id,
+                        Tasks.start_at.is_not(None),
+                        Tasks.end_at.is_not(None),
+                        Tasks.start_at < end_at,
+                        Tasks.end_at > body.start_at,
+                    )
                 )
             ).all()
 
-            check_schedule_conflict(
+            await check_schedule_conflict(
                 body,
                 end_at,
                 busy_tasks,
@@ -194,7 +194,7 @@ def create_manual_task(
         )
 
         session.add(task)
-        session.flush()
+        await session.flush()
 
         # Chỉ tạo reminder event nếu task đã có lịch và được bật nhắc.
         if task.start_at is not None and task.reminder_minutes is not None:
@@ -214,7 +214,7 @@ def create_manual_task(
                 )
             )
 
-        session.flush()
+        await session.flush()
         result = build_task_response(task)
 
     return result

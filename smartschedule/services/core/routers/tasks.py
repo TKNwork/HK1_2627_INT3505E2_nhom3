@@ -5,12 +5,12 @@ from ..schemas.tasks import CreateTask, ExpectedVersion, PatchTask, TaskData, Ta
 from ..services.fixtures import stub_task
 from ..utils.auth import get_current_user
 from ..utils.response import success
-from ..database import get_db
+from ..database import get_async_db
 from ..clients.scheduling_client import SchedulingClient
 from ..services.task_creation import create_manual_task
 from ..utils.auth import CurrentUser
 from ..utils.request_id import get_request_id
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix='/api/v1/tasks', tags=['Tasks'], dependencies=[Depends(get_current_user)])
 
@@ -21,17 +21,18 @@ router = APIRouter(prefix='/api/v1/tasks', tags=['Tasks'], dependencies=[Depends
     response_model=Envelope[TaskData],
     operation_id="API-03",
 )
-def create_task(
+async def create_task(
     body: CreateTask,
     request: Request,
     user: Annotated[CurrentUser, Depends(get_current_user)],
-    session: Annotated[Session, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_async_db)],
 ) -> dict:
-    """UC-03: tạo công việc thủ công."""
 
-    scheduling_client = SchedulingClient(request.app.state.settings)
+    scheduling_client = SchedulingClient(
+        request.app.state.settings
+    )
 
-    task = create_manual_task(
+    task = await create_manual_task(
         body=body,
         user_id=user.id,
         session=session,
