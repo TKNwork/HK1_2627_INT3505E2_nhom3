@@ -27,7 +27,7 @@ def register(body: Credentials, request: Request, db: Session = Depends(get_db))
     4. Trả thông tin user (chuyển sang đăng nhập).
     """
     user = register_user(body.email, body.password, db)
-    return success(request, RegisterData(user=User(id=user.id, email=user.email)))
+    return success(request, RegisterData(user=User(id=user.id, email=user.email, role=user.role)))
 
 
 @router.post('/login', response_model=Envelope[LoginData], operation_id='API-02')
@@ -43,7 +43,7 @@ def login(body: Credentials, request: Request, db: Session = Depends(get_db)) ->
     result = login_user(body.email, body.password, settings, db)
     user = result['user']
     return success(request, LoginData(
-        user=User(id=user.id, email=user.email),
+        user=User(id=user.id, email=user.email, role=user.role),
         access_token=result['access_token'],
         refresh_token=result['refresh_token'],
         expires_in=result['expires_in'],

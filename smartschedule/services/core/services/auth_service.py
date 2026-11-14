@@ -20,7 +20,7 @@ from ..utils.errors import AppError, ErrorCode
 
 def _build_token_pair(user: Users, settings: Settings, db: Session) -> dict:
     """Tạo cặp token và đưa refresh token vào transaction hiện tại."""
-    access_token, expires_at = create_access_token(user.id, settings)
+    access_token, expires_at = create_access_token(user.id, settings, role=user.role)
     raw_refresh = generate_refresh_token()
     refresh_row = RefreshTokens(
         user_id=user.id,
@@ -38,7 +38,7 @@ def _build_token_pair(user: Users, settings: Settings, db: Session) -> dict:
 
 # UC-01: Đăng ký
 
-def register_user(email: str, password: str, db: Session) -> Users:
+def register_user(email: str, password: str, db: Session, role: str = 'user') -> Users:
     """Tạo tài khoản mới.
 
     - Chuẩn hóa email (trim + lowercase).
@@ -50,6 +50,7 @@ def register_user(email: str, password: str, db: Session) -> Users:
     user = Users(
         email=normalized_email,
         password_hash=hash_password(password),
+        role=role,
     )
     db.add(user)
     try:

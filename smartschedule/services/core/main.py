@@ -10,7 +10,7 @@ from .schemas.base import Envelope, ErrorEnvelope, HealthData
 from .utils.errors import AppError, ErrorCode
 from .utils.request_id import RequestIdMiddleware
 from .utils.response import failure, success
-from .routers import auth, tasks, drafts, calendar, telegram
+from .routers import auth, tasks, drafts, calendar, telegram, admin_users
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ def create_app(settings: Settings | None = None, *, init_database_on_startup: bo
     app.include_router(drafts.router)
     app.include_router(calendar.router)
     app.include_router(telegram.router)
+    app.include_router(admin_users.router)
     def custom_openapi() -> dict:
         if app.openapi_schema:
             return app.openapi_schema
