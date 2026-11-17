@@ -1,0 +1,176 @@
+﻿{
+  "info": {
+    "name": "SmartSchedule AI Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8001" },
+    { "key": "internal_api_key", "value": "local_dev_internal_api_key_1234567890" }
+  ],
+  "item": [
+    {
+      "name": "happy-path",
+      "item": [
+        {
+          "name": "GET /health returns 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('service name is ai', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data.service).to.eql('ai');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "POST /internal/v1/extractions with complete sentence",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('extracts title and duration', function () {",
+                  "    const data = pm.response.json().data;",
+                  "    pm.expect(data).to.have.property('fields');",
+                  "    pm.expect(data.fields.durationMinutes).to.eql(90);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Internal-Api-Key", "value": "{{internal_api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source_text\": \"Ngay mai 9h hop nhom SOA trong 90 phut\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+            },
+            "url": "{{base_url}}/internal/v1/extractions"
+          }
+        },
+        {
+          "name": "POST /internal/v1/extractions detects missing start_at",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('lists missingFields as array', function () {",
+                  "    const data = pm.response.json().data;",
+                  "    pm.expect(data.missingFields).to.be.an('array');",
+                  "    pm.expect(data.missingFields.length).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Internal-Api-Key", "value": "{{internal_api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source_text\": \"Ngay mai lam bai tap lon\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+            },
+            "url": "{{base_url}}/internal/v1/extractions"
+          }
+        }
+      ]
+    },
+    {
+      "name": "error-cases",
+      "item": [
+        {
+          "name": "POST /internal/v1/extractions blank text returns 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('error code is VALIDATION_ERROR', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Internal-Api-Key", "value": "{{internal_api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source_text\": \"   \", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+            },
+            "url": "{{base_url}}/internal/v1/extractions"
+          }
+        },
+        {
+          "name": "POST /internal/v1/extractions missing key returns 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('error code is UNAUTHORIZED', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql('UNAUTHORIZED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source_text\": \"Hop nhom\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+            },
+            "url": "{{base_url}}/internal/v1/extractions"
+          }
+        }
+      ]
+    }
+  ]
+}
+
