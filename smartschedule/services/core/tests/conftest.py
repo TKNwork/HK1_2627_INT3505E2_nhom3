@@ -1,7 +1,14 @@
 import os
 import sys
-from pathlib import Path
 import pytest
+import asyncio
+from pathlib import Path
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker,
+)
+from services.core.database import get_async_db
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -18,11 +25,25 @@ from services.core.main import create_app
 
 
 @pytest.fixture
-def settings() -> Settings:
-    return Settings(_env_file=None, jwt_secret='test-jwt-secret-32-characters-minimum',
-                    internal_api_key='test-internal-key-32-characters-minimum',
-                    database_url='sqlite://')
+def settings(tmp_path):
+    return Settings(
+        _env_file=None,
+        jwt_secret='test-jwt-secret-32-characters-minimum',
+        internal_api_key='test-internal-key-32-characters-minimum',
+        database_url=f"sqlite:///{(tmp_path / 'core.db').as_posix()}",
+    )
 
+@pytest.fixture
+def async_db_engine(settings):
+    url = make_url(settings.database_url).set(
+        drivername="sqlite+aiosqlite"
+    )
+
+    engine = create_async_engine(url)
+
+    yield engine
+
+    asyncio.run(engine.dispose())
 
 @pytest.fixture
 def db_engine(settings):
@@ -41,11 +62,19 @@ def db_engine(settings):
 
     from services.core import models  # noqa: F401 – register models
 
-    # Tạo các bảng cần thiết cho auth (users & refresh_tokens)
-    auth_tables = [models.Users.__table__, models.RefreshTokens.__table__]
-    Base.metadata.create_all(engine, tables=auth_tables)
+    # Tạo tất cả các bảng (trước đây chỉ tạo users & refresh_tokens).
+    Base.metadata.create_all(engine)
+
+    # User khớp với token trong test_routes.headers(), cần cho khóa ngoại tasks.user_id.
+    with engine.begin() as conn:
+        conn.execute(models.Users.__table__.insert().values(
+            id='test-user',
+            email='test-user@example.com',
+            password_hash='not-a-real-hash',
+        ))
+
     yield engine
-    Base.metadata.drop_all(engine, tables=auth_tables)
+    Base.metadata.drop_all(engine)
     engine.dispose()
 
 

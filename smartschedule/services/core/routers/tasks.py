@@ -5,16 +5,42 @@ from ..schemas.tasks import CreateTask, ExpectedVersion, PatchTask, TaskData, Ta
 from ..services.fixtures import stub_task
 from ..utils.auth import get_current_user
 from ..utils.response import success
+from ..database import get_async_db
+from ..clients.scheduling_client import SchedulingClient
+from ..services.task_creation import create_manual_task
+from ..utils.auth import CurrentUser
+from ..utils.request_id import get_request_id
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix='/api/v1/tasks', tags=['Tasks'], dependencies=[Depends(get_current_user)])
 
 
-@router.post('', status_code=201, response_model=Envelope[TaskData], operation_id='API-03')
-def create_task(body: CreateTask, request: Request) -> dict:
-    """UC-03, UC-17: tạo công việc thủ công (stub)."""
-    # TODO: logic thật theo UC-03/17: kiểm trùng, transaction task+outbox.
-    return success(request, TaskData(task=stub_task()))
+@router.post(
+    "",
+    status_code=201,
+    response_model=Envelope[TaskData],
+    operation_id="API-03",
+)
+async def create_task(
+    body: CreateTask,
+    request: Request,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_async_db)],
+) -> dict:
 
+    scheduling_client = SchedulingClient(
+        request.app.state.settings
+    )
+
+    task = await create_manual_task(
+        body=body,
+        user_id=user.id,
+        session=session,
+        scheduling_client=scheduling_client,
+        request_id=get_request_id(request),
+    )
+
+    return success(request, TaskData(task=task))
 
 @router.get('', response_model=Envelope[TaskListData], operation_id='API-04')
 def list_tasks(request: Request, status: Literal['pending', 'completed'] | None = None,
