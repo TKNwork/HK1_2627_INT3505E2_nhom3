@@ -1,4 +1,4 @@
-"""Compare all 22 OpenAPI operation IDs/paths with the read-only Excel contract."""
+"""Check the workbook routes and the Auth/UC-09 OpenAPI metadata."""
 from pathlib import Path
 import importlib
 import re
@@ -8,7 +8,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def contract_endpoints() -> dict[str, tuple[str, str]]:
+def contract_rows() -> dict[str, dict[str, str]]:
     ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
           'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
     with zipfile.ZipFile(ROOT / 'docs/api-contract.xlsx') as z:
@@ -30,12 +30,17 @@ def contract_endpoints() -> dict[str, tuple[str, str]]:
                          else v.text if v is not None else '')
                 data[re.sub(r'\d+', '', c.attrib['r'])] = value
             if re.fullmatch(r'(API|INT)-\d+', data.get('A', '')):
-                result[data['A']] = (data['D'], data['E'])
+                result[data['A']] = data
         return result
+
+
+def contract_endpoints() -> dict[str, tuple[str, str]]:
+    return {operation: (row['D'], row['E']) for operation, row in contract_rows().items()}
 
 
 def main() -> None:
     actual = {}
+    operations = {}
     for name in ('core', 'ai', 'scheduling', 'notification'):
         app = importlib.import_module(f'services.{name}.main').create_app(init_database_on_startup=False)
         for path, methods in app.openapi()['paths'].items():
@@ -44,10 +49,25 @@ def main() -> None:
                 if op.startswith(('API-', 'INT-')):
                     assert op not in actual, f'Duplicate operationId: {op}'
                     actual[op] = (method.upper(), path)
-    expected = contract_endpoints()
+                    operations[op] = spec
+    rows = contract_rows()
+    expected = {operation: (row['D'], row['E']) for operation, row in rows.items()}
     assert len(expected) == 22
     assert actual == expected, f'Contract mismatch: expected={expected}, actual={actual}'
-    print('PASS: all 22 endpoints match method, path and operationId in docs/api-contract.xlsx.')
+    draft_ops = ('API-09', 'API-10', 'API-11', 'API-12', 'API-13')
+    for op in ('API-01', 'API-02', *draft_ops, 'INT-01'):
+        row = rows[op]
+        expected_statuses = {int(row['J'].split()[0]), *map(int, re.findall(r'\b[45]\d{2}\b', row['K']))}
+        if row['F'] in ('JWT', 'Service'):
+            expected_statuses.add(401)
+        missing = expected_statuses - {int(status) for status in operations[op]['responses']}
+        assert not missing, f'{op}: missing HTTP responses {sorted(missing)}'
+    for op, header in (('API-13', 'Idempotency-Key'), ('INT-01', 'X-Internal-Api-Key')):
+        assert any(p['in'] == 'header' and p['name'] == header and p.get('required')
+                   for p in operations[op]['parameters']), f'{op}: missing required header {header}'
+    for op in draft_ops:
+        assert {'HTTPBearer': []} in operations[op]['security'], f'{op}: missing Bearer JWT'
+    print('PASS: 22 workbook routes and Auth/UC-09 response and header metadata match.')
 
 
 if __name__ == '__main__':

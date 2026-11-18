@@ -13,7 +13,7 @@ class LLMClient:
         """Gọi LLM và kiểm tra JSON trả về; lỗi được chuyển lên service để fallback."""
         settings = self.settings
         schema = ExtractionFields.model_json_schema(by_alias=True)
-        async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds,
+        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds,
                                      transport=self.transport, trust_env=False) as client:
             response = await client.post(settings.llm_base_url.rstrip('/') + '/chat/completions',
                 headers={'Authorization': f'Bearer {settings.llm_api_key}', 'X-Request-Id': request_id},
@@ -26,5 +26,8 @@ class LLMClient:
                            'Không đặt giờ bắt đầu nếu chỉ có deadline. Schema: ' + json.dumps(schema)},
                           {'role': 'user', 'content': body.model_dump_json(by_alias=True)}]})
             response.raise_for_status()
-            content = response.json()['choices'][0]['message']['content']
+            message = response.json()['choices'][0]['message']
+            content = message.get('content') if isinstance(message, dict) else None
+            if not isinstance(content, str):
+                raise ValueError('Provider did not return JSON text.')
             return ExtractionFields.model_validate_json(content)

@@ -28,13 +28,14 @@ class RefreshTokens(Base):
     __tablename__ = 'refresh_tokens'
     id: Mapped[str] = mapped_column(String(128), nullable=False, primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(String(128), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(128), nullable=False, default=new_id)
     token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     __table_args__ = (
         Index('ix_refresh_tokens_user', 'user_id'),
-        Index('ix_refresh_tokens_hash', 'token_hash'),
+        Index('ix_refresh_tokens_session', 'session_id'),
     )
 
 

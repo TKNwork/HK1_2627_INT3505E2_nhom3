@@ -1,5 +1,6 @@
+import asyncio
 from ..config import Settings
-from ..utils.errors import ErrorCode
+from ..utils.errors import AppError, ErrorCode
 from .http_client import InternalClient
 
 
@@ -12,4 +13,8 @@ class AIClient(InternalClient):
 
     async def extract(self, payload: dict, request_id: str) -> dict:
         """Gửi yêu cầu trích xuất sang AI và trả phần data."""
-        return await self.request('POST', '/internal/v1/extractions', request_id, payload)
+        try:
+            async with asyncio.timeout(self.timeout):
+                return await self.request('POST', '/internal/v1/extractions', request_id, payload)
+        except TimeoutError as exc:
+            raise AppError(ErrorCode.AI_TIMEOUT, 504, 'AI quá thời gian phản hồi.') from exc

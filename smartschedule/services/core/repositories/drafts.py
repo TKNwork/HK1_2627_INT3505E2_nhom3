@@ -8,17 +8,14 @@ class DraftRepository:
         self.session = session
 
     def user_exists(self, user_id: str) -> bool:
-        return self.session.get(Users, user_id) is not None
+        with self.session.begin():
+            return self.session.scalar(select(Users.id).where(Users.id == user_id)) is not None
 
     def add(self, draft: ScheduleDrafts) -> ScheduleDrafts:
-        """Lưu và đọc lại bản nháp; rollback khi lỗi rồi phát lại ngoại lệ."""
-        self.session.add(draft)
-        try:
-            self.session.commit()
-            self.session.refresh(draft)
-        except Exception:
-            self.session.rollback()
-            raise
+        """Lưu bản nháp trong một transaction."""
+        with self.session.begin():
+            self.session.add(draft)
+            self.session.flush()
         return draft
 
     def find_owned(self, draft_id: str, user_id: str) -> ScheduleDrafts | None:

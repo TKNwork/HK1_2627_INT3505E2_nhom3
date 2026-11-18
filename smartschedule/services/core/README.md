@@ -1,6 +1,6 @@
 # SmartSchedule — core
 
-**Owner:** A. **Port:** 8000. **Chế độ:** UC-09 đã triển khai; các UC khác còn skeleton.
+**Owner:** A. **Port:** 8000. Auth và UC-09 đã triển khai. Các route ngoài phạm vi này còn ở chế độ skeleton.
 
 Auth, CRUD, draft, confirm, calendar và điều phối; sở hữu Core DB.
 
@@ -12,7 +12,7 @@ API-01–16: `/api/v1/auth/*`, `/api/v1/tasks*`, `/api/v1/schedule-drafts*`, `/a
 
 ## Cài và chạy riêng
 
-Chạy lệnh từ **gốc repo**, dùng Python 3.11 và môi trường ảo:
+Chạy lệnh từ thư mục **`smartschedule/`**, dùng Python 3.11 và môi trường ảo:
 
 ```powershell
 python -m venv .venv
@@ -30,7 +30,14 @@ Có thể chạy từ thư mục service bằng `python -m uvicorn services.core
 File `.env` ở **chính thư mục service**, được nạp độc lập với working directory.
 `scripts/setup_local.py` tạo file thiếu với secret local ngẫu nhiên; không ghi đè file đã tồn tại.
 
-`DATABASE_URL`, `INIT_DB` (mặc định true, tạo bảng dev). `JWT_SECRET`, `JWT_EXPIRE_MINUTES` dùng cho auth.
+`DATABASE_URL` chọn DB. `INIT_DB` mặc định true để tạo bảng trên DB dev mới.
+Auth dùng `JWT_SECRET`, `JWT_ACCESS_EXPIRE_MINUTES` (mặc định 10) và
+`JWT_REFRESH_EXPIRE_DAYS` (mặc định 7). Core vẫn đọc `JWT_EXPIRE_MINUTES` từ cấu hình cũ
+khi biến access TTL mới vắng mặt.
+
+Khi nâng cấp DB hiện có, dừng tiến trình Core cũ và chạy
+`python -m scripts.migrate_core_auth` từ `smartschedule/` trước khi bật Core mới.
+Script dùng `DATABASE_URL` của Core, cần quyền tạo và sửa bảng. Có thể chạy lại.
 
 Các biến base URL: `CORE_BASE_URL`, `AI_BASE_URL`, `SCHEDULING_BASE_URL`, `NOTIFICATION_BASE_URL`.
 Timeout: `AI_TIMEOUT_SECONDS=30`, `SCHEDULING_TIMEOUT_SECONDS=5`, `NOTIFICATION_TIMEOUT_SECONDS=5`.
@@ -50,7 +57,9 @@ Test JWT và hash là hạ tầng xác thực; chưa chứng minh nghiệp vụ 
 - Fixture cố định năm 2030, không mô phỏng đầy đủ nội dung request hoặc thay đổi giữa các lần gọi.
 - UC-09/GET draft đã lưu DB, kiểm ownership và TTL; các UC còn lại chưa có nghiệp vụ đầy đủ.
 - UC-09 gọi AI qua HTTP. Telegram/worker chưa triển khai, accepted event còn giả.
-- Auth mới có hạ tầng; chưa triển khai UC-01/02 thật.
+- Register/login lưu user và kiểm tra mật khẩu qua PostgreSQL. Refresh/logout dùng
+  `refreshToken`. Hai route này cùng `refreshToken` và `expiresIn` trong login là phần
+  mở rộng của nhánh, chờ nhóm cập nhật workbook API.
 - TODO trong router/service chỉ ra UC cần triển khai; xem [README gốc](../../README.md).
 - Core/Notification dùng `create_all` trong dev; TODO chuyển Alembic sau.
 
@@ -62,10 +71,11 @@ Test JWT và hash là hạ tầng xác thực; chưa chứng minh nghiệp vụ 
 
 Luồng: POST schedule-drafts → services/drafts.create_from_text → AIClient → AI service
 → kiểm tra kết quả → DraftRepository → schedule_drafts. GET draft đọc lại có ownership/TTL.
-Các route PATCH/suggestions/confirm vẫn là stub, chỉ bổ sung guard ownership/TTL; chưa hoàn thành UC-10/11/12.
+PATCH, suggestions và confirm thuộc UC-10/11/12. Skeleton trả `501 NOT_IMPLEMENTED`
+sau khi qua các kiểm tra quyền, TTL, version, trạng thái và header tương ứng.
 Không tạo task, event hoặc nhắc khi tạo draft.
 
-Body chuẩn giữ sourceText/timezone theo Excel. timezone mặc định Asia/Ho_Chi_Minh.
+Body chuẩn yêu cầu `sourceText` và `timezone` theo Excel.
 Có thể truyền referenceTime (hoặc reference_time, RFC3339 có offset) để tái hiện diễn giải
 “ngày mai”. Nếu thiếu, dùng thời gian máy chủ. TTL luôn tính từ thời gian máy chủ, 30 phút.
 text/prompt là alias của sourceText. Không thêm start_time/end_time vào DTO public:
@@ -77,10 +87,11 @@ Ví dụ body:
 ```
 
 Core và AI cần cùng INTERNAL_API_KEY. User trong JWT phải tồn tại trong users trước khi tạo draft.
-Auth register/login của skeleton chưa lưu user thật; không dùng login mẫu để nghiệm thu auth.
-Khi tích hợp UC-01/02 thật, JWT sub phải trỏ đến user đã lưu. Không tự tạo user trong UC-09.
+Đăng ký và đăng nhập để lấy JWT có `sub` trỏ tới user đã lưu. UUID trên API được lưu
+dưới dạng chuỗi theo thiết kế DB hiện có.
 Lỗi input 400; thiếu JWT/user không tồn tại 401; AI sai output 502, unavailable 503, timeout 504.
 GET hoặc guard trên route draft trả 404 nếu khác chủ/không tồn tại, 410 nếu hết hạn.
 
 Test: `.\.venv\Scripts\python.exe -m pytest services/core/tests services/ai/tests -q`.
-Tests dùng repository in-memory và MockTransport/ASGITransport, không thay thế kiểm thử PostgreSQL thật.
+Tests tách fixture chung, Auth và UC-09. Kiểm tra HTTP và PostgreSQL thật bằng
+`python -m scripts.smoke_check` trên DB dev dành cho test. Script tạo user và draft.

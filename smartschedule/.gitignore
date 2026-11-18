@@ -16,5 +16,7 @@ dist/
 # Local reports/logs
 *.log
 .local/
+/services/ai/tests/performance/report.html
+/services/ai/tests/postman/reports/
 .DS_Store
 Thumbs.db

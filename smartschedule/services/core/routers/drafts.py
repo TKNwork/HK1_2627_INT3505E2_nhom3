@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, Header, Request
 from ..schemas.base import Envelope, ErrorEnvelope
 from ..schemas.drafts import ConfirmData, CreateDraft, DraftData, PatchDraft, SuggestDraft, SuggestionsData
 from ..schemas.tasks import ExpectedVersion
-from ..services.fixtures import stub_draft, stub_task
 from ..utils.auth import CurrentUser, get_current_user
 from ..services.drafts import create_from_text, draft_response, get_ai_client, get_draft_repository, load_owned_draft
 from ..utils.request_id import get_request_id
@@ -30,19 +29,27 @@ def get_draft(id: str, request: Request, row=Depends(load_owned_draft)) -> dict:
     return success(request, DraftData(draft=draft_response(row)))
 
 
-@router.patch('/{id}', response_model=Envelope[DraftData], operation_id='API-11')
+def check_draft_version(row, expected_version: int) -> None:
+    if row.state == 'confirmed':
+        raise AppError(ErrorCode.DRAFT_ALREADY_CONFIRMED, 409, 'Bản nháp đã được xác nhận.')
+    if row.version != expected_version:
+        raise AppError(ErrorCode.VERSION_CONFLICT, 409, 'Phiên bản bản nháp đã thay đổi.')
+
+
+@router.patch('/{id}', response_model=Envelope[DraftData], operation_id='API-11',
+              responses=dict.fromkeys((404, 409, 410, 501), {'model': ErrorEnvelope}))
 def patch_draft(id: str, body: PatchDraft, request: Request, row=Depends(load_owned_draft)) -> dict:
-    """UC-10: còn trả dữ liệu mẫu, chưa cập nhật bản nháp."""
-    # TODO: logic thật theo UC-10/11/17: fields, state, version; không gia hạn TTL.
-    return success(request, DraftData(draft=stub_draft(id, version=2)))
+    check_draft_version(row, body.expected_version)
+    raise AppError(ErrorCode.NOT_IMPLEMENTED, 501, 'Chỉnh sửa bản nháp chưa được triển khai.')
 
 
-@router.post('/{id}/suggestions', response_model=Envelope[SuggestionsData], operation_id='API-12')
+@router.post('/{id}/suggestions', response_model=Envelope[SuggestionsData], operation_id='API-12',
+             responses=dict.fromkeys((404, 409, 410, 422, 501, 503), {'model': ErrorEnvelope}))
 def suggest(id: str, body: SuggestDraft, request: Request, row=Depends(load_owned_draft)) -> dict:
-    """UC-11: còn trả gợi ý mẫu, chưa gọi Scheduling."""
-    # TODO: logic thật theo UC-11: đủ đầu vào, đọc busy, Scheduling và cập nhật draft.
-    return success(request, SuggestionsData(draft=stub_draft(id, version=2, with_suggestions=True),
-                                           notice='STUB: gợi ý không giữ chỗ.'))
+    check_draft_version(row, body.expected_version)
+    if row.state == 'needs_input':
+        raise AppError(ErrorCode.DRAFT_NOT_READY, 422, 'Bản nháp chưa đủ đầu vào để tìm giờ.')
+    raise AppError(ErrorCode.NOT_IMPLEMENTED, 501, 'Gợi ý lịch chưa được triển khai.')
 
 
 def require_idempotency_key(key: Annotated[str | None, Header(alias='Idempotency-Key')] = None) -> str:
@@ -52,9 +59,11 @@ def require_idempotency_key(key: Annotated[str | None, Header(alias='Idempotency
     return key
 
 
-@router.post('/{id}/confirm', status_code=201, response_model=Envelope[ConfirmData], operation_id='API-13')
+@router.post('/{id}/confirm', status_code=201, response_model=Envelope[ConfirmData], operation_id='API-13',
+             responses=dict.fromkeys((404, 409, 410, 422, 501, 503), {'model': ErrorEnvelope}))
 def confirm(id: str, body: ExpectedVersion, request: Request,
             key: Annotated[str, Depends(require_idempotency_key)], row=Depends(load_owned_draft)) -> dict:
-    """UC-12: còn trả dữ liệu mẫu, chưa tạo task hoặc chống trùng."""
-    # TODO: logic thật theo UC-12: replay, TTL/version, kiểm trùng và transaction atomic.
-    return success(request, ConfirmData(task=stub_task(), draft=stub_draft(id, version=2, confirmed=True)))
+    check_draft_version(row, body.expected_version)
+    if row.state != 'ready_to_confirm':
+        raise AppError(ErrorCode.DRAFT_NOT_READY, 422, 'Bản nháp chưa thể xác nhận.')
+    raise AppError(ErrorCode.NOT_IMPLEMENTED, 501, 'Xác nhận bản nháp chưa được triển khai.')

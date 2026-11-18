@@ -1,4 +1,4 @@
-﻿{
+{
   "info": {
     "name": "SmartSchedule AI Service",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -63,7 +63,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"source_text\": \"Ngay mai 9h hop nhom SOA trong 90 phut\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+              "raw": "{\"sourceText\": \"Ngay mai 9h hop nhom SOA trong 90 phut\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
             },
             "url": "{{base_url}}/internal/v1/extractions"
           }
@@ -78,10 +78,10 @@
                   "pm.test('status code is 200', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test('lists missingFields as array', function () {",
+                  "pm.test('missingFields includes startAt', function () {",
                   "    const data = pm.response.json().data;",
                   "    pm.expect(data.missingFields).to.be.an('array');",
-                  "    pm.expect(data.missingFields.length).to.be.above(0);",
+                  "    pm.expect(data.missingFields).to.include('startAt');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -96,7 +96,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"source_text\": \"Ngay mai lam bai tap lon\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+              "raw": "{\"sourceText\": \"Ngay mai lam bai tap lon\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
             },
             "url": "{{base_url}}/internal/v1/extractions"
           }
@@ -133,7 +133,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"source_text\": \"   \", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+              "raw": "{\"sourceText\": \"   \", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
             },
             "url": "{{base_url}}/internal/v1/extractions"
           }
@@ -164,7 +164,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"source_text\": \"Hop nhom\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
+              "raw": "{\"sourceText\": \"Hop nhom\", \"timezone\": \"Asia/Ho_Chi_Minh\", \"now\": \"2026-11-17T08:00:00+07:00\"}"
             },
             "url": "{{base_url}}/internal/v1/extractions"
           }
@@ -173,4 +173,3 @@
     }
   ]
 }
-

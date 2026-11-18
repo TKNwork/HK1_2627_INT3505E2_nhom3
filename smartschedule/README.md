@@ -1,12 +1,11 @@
 > Cập nhật UC-09: tạo/lưu/đọc draft và AI extraction đã triển khai. Các ghi chú skeleton
 > bên dưới mô tả nền ban đầu; xem services/core/README.md và services/ai/README.md
-> để chạy phần UC-09. Auth, sửa draft, scheduling và confirm vẫn chưa hoàn thiện.
+> để chạy phần UC-09. Auth đã lưu dữ liệu thật. Sửa draft, gợi ý lịch và confirm thuộc UC-10/11/12.
 
 # SmartSchedule — Skeleton SOA
 
-Skeleton cho nhóm 4 sinh viên: cấu hình, schema, SQLAlchemy models, endpoint fixture và test nền tảng.
-**Chưa có nghiệp vụ thật.** Login chấp nhận credential đúng schema và cấp JWT cho user fixture;
-register/task/draft không lưu dữ liệu. Không sử dụng bản skeleton như hệ thống đăng nhập thực tế.
+Nền SOA cho nhóm 4 sinh viên gồm cấu hình, schema, SQLAlchemy models và test.
+Auth và UC-09 dùng PostgreSQL. Các endpoint skeleton còn lại phục vụ tích hợp theo phân công.
 
 ## Kiến trúc
 
@@ -94,9 +93,9 @@ Error.details là mảng `{field,reason}`. FastAPI validation được chuẩn h
 .\.venv\Scripts\python.exe -m scripts.check_contract
 ```
 
-TestClient dùng app factory tắt DB initialization; fixture có secret test riêng.
-Không cần SQLite, không gọi LLM/Telegram hoặc service khác.
-Script check_contract đọc Excel, đối chiếu đủ 22 method/path/operationId trong OpenAPI.
+TestClient tắt DB initialization. Test Auth và UC-09 có fixture SQLite riêng.
+Suite test dùng transport giả cho LLM và các service phụ thuộc. Script check_contract
+đọc Excel để kiểm tra 22 route và metadata HTTP của Auth và draft.
 
 ### Kiểm tra khởi động thật
 
@@ -106,7 +105,10 @@ Sau khi hai DB healthy, chạy:
 .\.venv\Scripts\python.exe -m scripts.smoke_check
 ```
 
-Script khởi động 4 Uvicorn local, kiểm tra health/Swagger/22 endpoint và schema hai DB, rồi tự dừng các API do script tạo. Kết quả lưu `.local/smoke-results.json`; không gọi LLM/Telegram, không chạy worker. Cần cài `requirements-dev.txt` vì script dùng lại dữ liệu request của test.
+Chạy với DB dev dành cho test. Script tự tạo user và draft, kiểm tra 22 route
+cùng schema hai DB, rồi dừng 4 tiến trình API do nó tạo. Ba route draft ngoài UC-09
+được kiểm tra qua phản hồi `501`. Script dùng AI rule-based và lưu kết quả ở
+`.local/smoke-results.json`. Cài dependency từ `requirements-dev.txt` trước khi chạy.
 
 Nếu cổng 5433 hoặc 8000 đang do dự án khác sử dụng, không dừng dịch vụ đó tùy tiện. Dùng Compose override local cho Core DB và cổng API tạm khi kiểm tra. Cấu hình mặc định trong repo vẫn là DB 5433/5434, API 8000–8003.
 

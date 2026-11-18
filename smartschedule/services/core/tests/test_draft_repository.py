@@ -5,21 +5,23 @@ from services.core.models import ScheduleDrafts
 from services.core.repositories.drafts import DraftRepository
 
 
-def test_add_commits_and_refreshes():
+def test_add_flushes_inside_transaction():
     session = MagicMock()
     row = ScheduleDrafts(id='draft')
     assert DraftRepository(session).add(row) is row
     session.add.assert_called_once_with(row)
-    session.commit.assert_called_once()
-    session.refresh.assert_called_once_with(row)
+    session.begin.assert_called_once()
+    session.flush.assert_called_once()
+    session.begin.return_value.__exit__.assert_called_once_with(None, None, None)
+    session.refresh.assert_not_called()
 
 
-def test_failed_commit_rolls_back():
+def test_failed_flush_exits_transaction_with_error():
     session = MagicMock()
-    session.commit.side_effect = RuntimeError('database failure')
-    with pytest.raises(RuntimeError):
+    session.flush.side_effect = RuntimeError('database failure')
+    with pytest.raises(RuntimeError) as error:
         DraftRepository(session).add(ScheduleDrafts(id='draft'))
-    session.rollback.assert_called_once()
+    assert session.begin.return_value.__exit__.call_args.args[:2] == (RuntimeError, error.value)
     session.refresh.assert_not_called()
 
 

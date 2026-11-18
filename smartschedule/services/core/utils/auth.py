@@ -7,9 +7,6 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
-from ..database import get_db
-from ..models import Users
 from ..config import Settings
 from ..schemas.base import ApiModel
 from .errors import AppError, ErrorCode
@@ -52,7 +49,7 @@ def decode_access_token(token: str, settings: Settings) -> CurrentUser:
                              options={'require': ['sub', 'iat', 'exp']})
         if not isinstance(payload['sub'], str) or not payload['sub']:
             raise jwt.InvalidTokenError('Missing subject')
-        if payload.get('type') != 'access':
+        if 'type' in payload and payload['type'] != 'access':
             raise jwt.InvalidTokenError('Not an access token')
         return CurrentUser(id=payload['sub'])
     except jwt.InvalidTokenError as exc:
@@ -77,13 +74,8 @@ def get_refresh_expiry(settings: Settings) -> datetime:
 def get_current_user(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
-    session: Annotated[Session, Depends(get_db)],
 ) -> CurrentUser:
     if credentials is None or credentials.scheme.lower() != 'bearer':
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Yêu cầu JWT Bearer.')
 
-    user = decode_access_token(credentials.credentials, request.app.state.settings)
-    if session.get(Users, user.id) is None:
-        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
-
-    return user
+    return decode_access_token(credentials.credentials, request.app.state.settings)

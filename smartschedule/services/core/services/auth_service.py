@@ -1,6 +1,8 @@
 """UC-01 (Đăng ký) và UC-02 (Đăng nhập) – business logic thật."""
 from datetime import datetime, timezone
+from uuid import uuid4
 
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,12 +20,13 @@ from ..utils.errors import AppError, ErrorCode
 
 # Helpers
 
-def _build_token_pair(user: Users, settings: Settings, db: Session) -> dict:
+def _build_token_pair(user: Users, settings: Settings, db: Session, session_id: str) -> dict:
     """Tạo cặp token và đưa refresh token vào transaction hiện tại."""
     access_token, expires_at = create_access_token(user.id, settings)
     raw_refresh = generate_refresh_token()
     refresh_row = RefreshTokens(
         user_id=user.id,
+        session_id=session_id,
         token_hash=hash_refresh_token(raw_refresh),
         expires_at=get_refresh_expiry(settings),
     )
@@ -70,48 +73,51 @@ def login_user(email: str, password: str, settings: Settings, db: Session) -> di
     - Ném lỗi ``INVALID_CREDENTIALS`` nếu sai thông tin đăng nhập.
     """
     normalized_email = email.strip().lower()
-    user = db.query(Users).filter(Users.email == normalized_email).first()
-    if user is None or not verify_password(password, user.password_hash):
-        raise AppError(ErrorCode.INVALID_CREDENTIALS, 401, 'Email hoặc mật khẩu không đúng.')
-    tokens = _build_token_pair(user, settings, db)
-    db.commit()
+    with db.begin():
+        user = db.scalar(select(Users).where(Users.email == normalized_email))
+        if user is None or not verify_password(password, user.password_hash):
+            raise AppError(ErrorCode.INVALID_CREDENTIALS, 401, 'Email hoặc mật khẩu không đúng.')
+        # The same lock orders token issuance, rotation, reuse and logout.
+        user = db.scalar(select(Users).where(Users.id == user.id).with_for_update())
+        if user is None:
+            raise AppError(ErrorCode.INVALID_CREDENTIALS, 401, 'Email hoặc mật khẩu không đúng.')
+        tokens = _build_token_pair(user, settings, db, str(uuid4()))
     return {'user': user, **tokens}
 
 
-# Refresh token
+def _lock_refresh_user(db: Session, token_hash: str) -> Users | None:
+    user_id = db.scalar(select(RefreshTokens.user_id).where(RefreshTokens.token_hash == token_hash))
+    if user_id is None:
+        return None
+    return db.scalar(select(Users).where(Users.id == user_id).with_for_update())
+
 
 def refresh_tokens(raw_refresh: str, settings: Settings, db: Session) -> dict:
     """Vô hiệu refresh token cũ và lưu token mới trong cùng transaction."""
     token_hash = hash_refresh_token(raw_refresh)
     with db.begin():
-        row = (
-            db.query(RefreshTokens)
-            .filter(RefreshTokens.token_hash == token_hash)
-            .with_for_update()
-            .first()
-        )
+        user = _lock_refresh_user(db, token_hash)
+        if user is None:
+            raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token không tồn tại.')
+        row = db.scalar(select(RefreshTokens).where(RefreshTokens.token_hash == token_hash))
         if row is None:
             raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token không tồn tại.')
 
+        expires_at = row.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token đã hết hạn.')
+
         if row.revoked:
             # Dùng lại token đã thu hồi thì thu hồi mọi refresh token của user.
-            db.query(RefreshTokens).filter(
+            db.execute(update(RefreshTokens).where(
                 RefreshTokens.user_id == row.user_id,
                 RefreshTokens.revoked.is_(False),
-            ).update({'revoked': True})
+            ).values(revoked=True))
         else:
-            expires_at = row.expires_at
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=timezone.utc)
-            if expires_at <= datetime.now(timezone.utc):
-                raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token đã hết hạn.')
-
-            user = db.get(Users, row.user_id)
-            if user is None:
-                raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
-
             row.revoked = True
-            return _build_token_pair(user, settings, db)
+            return _build_token_pair(user, settings, db, row.session_id)
 
     # Báo lỗi sau khi transaction đã commit việc thu hồi.
     raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Refresh token đã bị thu hồi.')
@@ -122,9 +128,16 @@ def refresh_tokens(raw_refresh: str, settings: Settings, db: Session) -> dict:
 # ---------------------------------------------------------------------------
 
 def revoke_refresh_token(raw_refresh: str, db: Session) -> None:
-    """Vô hiệu một refresh token (dùng khi logout)."""
+    """Vô hiệu cả chuỗi refresh token của phiên đang đăng xuất."""
     token_hash = hash_refresh_token(raw_refresh)
-    row = db.query(RefreshTokens).filter(RefreshTokens.token_hash == token_hash).first()
-    if row and not row.revoked:
-        row.revoked = True
-        db.commit()
+    with db.begin():
+        user = _lock_refresh_user(db, token_hash)
+        if user is None:
+            return
+        row = db.scalar(select(RefreshTokens).where(RefreshTokens.token_hash == token_hash))
+        if row is not None:
+            db.execute(update(RefreshTokens).where(
+                RefreshTokens.user_id == user.id,
+                RefreshTokens.session_id == row.session_id,
+                RefreshTokens.revoked.is_(False),
+            ).values(revoked=True))

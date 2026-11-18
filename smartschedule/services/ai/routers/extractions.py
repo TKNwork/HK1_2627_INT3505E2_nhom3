@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request
-from ..schemas.base import Envelope
+from ..schemas.base import Envelope, ErrorEnvelope
 from ..schemas.extractions import ExtractionData, ExtractionRequest
 from ..utils.internal_auth import require_internal_key
 from ..utils.response import success
@@ -7,7 +7,8 @@ from ..utils.response import success
 router = APIRouter(prefix='/internal/v1', tags=['Extraction'], dependencies=[Depends(require_internal_key)])
 
 
-@router.post('/extractions', response_model=Envelope[ExtractionData], operation_id='INT-01')
+@router.post('/extractions', response_model=Envelope[ExtractionData], operation_id='INT-01',
+             responses=dict.fromkeys((502, 503, 504), {'model': ErrorEnvelope}))
 async def extract(body: ExtractionRequest, request: Request) -> dict:
     """Nhận yêu cầu nội bộ và trả kết quả trích xuất cùng requestId."""
     from ..services.provider import extract_request

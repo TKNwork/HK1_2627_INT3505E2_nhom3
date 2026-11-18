@@ -12,7 +12,7 @@ INT-01: `POST /internal/v1/extractions`.
 
 ## Cài và chạy riêng
 
-Chạy lệnh từ **gốc repo**, dùng Python 3.11 và môi trường ảo:
+Chạy lệnh từ thư mục **`smartschedule/`**, dùng Python 3.11 và môi trường ảo:
 
 ```powershell
 python -m venv .venv
@@ -33,8 +33,7 @@ File `.env` ở **chính thư mục service**, được nạp độc lập với
 Không có DATABASE_URL hoặc database.py. `INTERNAL_API_KEY` dùng cho mọi endpoint nội bộ. `LLM_API_KEY` mặc định trống để dùng fallback.
 
 Các biến base URL: `CORE_BASE_URL`, `AI_BASE_URL`, `SCHEDULING_BASE_URL`, `NOTIFICATION_BASE_URL`.
-Timeout: `AI_TIMEOUT_SECONDS=30`, `SCHEDULING_TIMEOUT_SECONDS=5`, `NOTIFICATION_TIMEOUT_SECONDS=5`.
-Base URL/timeout ở service chưa sử dụng chỉ là cấu hình khung.
+Timeout gọi provider dùng `LLM_TIMEOUT_SECONDS=20`. Các biến timeout còn lại là cấu hình khung.
 
 ## Kiểm thử
 
@@ -57,9 +56,9 @@ Test JWT và hash là hạ tầng xác thực; chưa chứng minh nghiệp vụ 
 
 ## Trích xuất UC-09
 
-INT-01 nhận sourceText/timezone/now theo Excel; now bắt buộc có offset RFC3339.
+INT-01 yêu cầu `sourceText`, `timezone` và `now` theo Excel. `now` dùng RFC3339 có offset.
 Alias text/prompt và reference_time/referenceTime cũng được chấp nhận.
-Timezone mặc định Asia/Ho_Chi_Minh. Trả fields, missingFields, requiredInputFields, warnings.
+Trả `fields`, `missingFields`, `requiredInputFields` và `warnings`.
 
 Không có cấu hình LLM thì dùng quy tắc, không gọi mạng. Để bật provider hỗ trợ giao thức
 Chat Completions JSON, đặt trong services/ai/.env:
@@ -68,15 +67,17 @@ Chat Completions JSON, đặt trong services/ai/.env:
 LLM_API_KEY=<key-cua-ban>
 LLM_BASE_URL=https://<provider>/v1
 LLM_MODEL=<model-ho-tro-json-object>
-AI_TIMEOUT_SECONDS=30
+LLM_TIMEOUT_SECONDS=20
 ```
 
 Adapter gọi POST {LLM_BASE_URL}/chat/completions, yêu cầu response_format=json_object.
 Không log API key hoặc nội dung người dùng. Không commit .env.
-Provider timeout/HTTP error/JSON hoặc schema không hợp lệ sẽ dùng rule-based và thêm LLM_FALLBACK.
+Provider timeout, lỗi HTTP hoặc JSON/schema sai sẽ dùng rule-based và thêm `LLM_FALLBACK`.
+Nếu fallback cũng lỗi, AI trả `502`, `503` hoặc `504` theo lỗi đã phân loại.
+Đặt `LLM_TIMEOUT_SECONDS` thấp hơn `AI_TIMEOUT_SECONDS` của Core để còn thời gian fallback.
 Chỉ bật LLM khi đủ cả key, base URL và model. Không retry provider tự động.
 
-Quy tắc hỗ trợ hôm nay/ngày mai/ngày kia, thứ 2–7/chủ nhật (tuần sau),
+Quy tắc hỗ trợ hôm nay, các buổi trong ngày, ngày mai, ngày kia, thứ 2–7 bằng số hoặc chữ, chủ nhật và tuần sau,
 DD/MM[/YYYY], YYYY-MM-DD, giờ h/:/giờ kèm sáng/chiều/tối, phút/tiếng/giờ,
 thời lượng rưỡi, khoảng từ…đến…, deadline có ngày/giờ.
 Thiếu ngày không tự gán hôm nay; giờ qua đêm/mâu thuẫn/câu chưa rõ trả cảnh báo để kiểm tra.
@@ -85,3 +86,7 @@ Không cam kết hiểu mọi câu tiếng Việt hay hỗ trợ lặp/nhiều c
 missingFields xét title/date/startAt/durationMinutes. requiredInputFields bắt buộc title,
 thời lượng và date nếu chưa có startAt/deadlineAt. Deadline và reminder là tùy chọn.
 Không có startAt nhưng đủ dữ liệu tìm giờ là trường hợp bình thường.
+
+Newman runner và Locust lấy `INTERNAL_API_KEY` từ môi trường. Nếu thiếu chúng dùng
+`local_dev_internal_api_key_1234567890` cho test local. Khi dùng `setup_local.py`, truyền
+khóa trong `services/ai/.env` cho công cụ chạy test.

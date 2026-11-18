@@ -10,14 +10,15 @@ from ..schemas.auth import (
     RegisterData,
     User,
 )
-from ..schemas.base import Envelope
+from ..schemas.base import Envelope, ErrorEnvelope
 from ..services.auth_service import login_user, refresh_tokens, register_user, revoke_refresh_token
 from ..utils.response import success
 
 router = APIRouter(prefix='/api/v1/auth', tags=['Auth'])
 
 
-@router.post('/register', status_code=201, response_model=Envelope[RegisterData], operation_id='API-01')
+@router.post('/register', status_code=201, response_model=Envelope[RegisterData], operation_id='API-01',
+             responses={409: {'model': ErrorEnvelope}})
 def register(body: Credentials, request: Request, db: Session = Depends(get_db)) -> dict:
     """UC-01: Đăng ký tài khoản.
 
@@ -35,8 +36,8 @@ def login(body: Credentials, request: Request, db: Session = Depends(get_db)) ->
     """UC-02: Đăng nhập.
 
     1. Xác thực email + password.
-    2. Tạo access token (JWT, 10 phút) → client lưu localStorage.
-    3. Tạo refresh token (random, 7 ngày) → lưu hash vào DB.
+    2. Tạo access token JWT theo TTL cấu hình.
+    3. Tạo refresh token và lưu hash vào DB.
     4. Trả cặp token cho client.
     """
     settings = request.app.state.settings

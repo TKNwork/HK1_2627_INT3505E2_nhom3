@@ -41,6 +41,33 @@ def test_title_preserves_accents_and_does_not_include_time():
     assert extract_rules(body('Ngày mai họp nhóm lúc 9h trong 1 tiếng rưỡi')).fields.title == 'họp nhóm'
 
 
+@pytest.mark.parametrize('source,title,date,hour,duration,deadline', [
+    ('Họp với Mai trong 60 phút', 'Họp với Mai', None, None, 60, None),
+    ('Thứ sáu 14h nộp báo cáo, xong trước 17h', 'nộp báo cáo', '2026-11-06', '14:00', None, '17:00'),
+    ('Sáng thứ hai 8h30 trao đổi đồ án', 'trao đổi đồ án', '2026-11-09', '08:30', None, None),
+    ('Tối nay 8h ôn tập 2 tiếng', 'ôn tập', '2026-11-06', '20:00', 120, None),
+    ('Ngày mai họp lúc 9 giờ 30 phút', 'họp', '2026-11-07', '09:30', None, None),
+    ('Ngày mai từ 2h đến 3h chiều họp nhóm', 'họp nhóm', '2026-11-07', '14:00', 60, None),
+    ('Ngày mai họp trước khi đi học trong 60 phút', 'họp trước khi đi học', '2026-11-07', None, 60, None),
+    ('Nộp báo cáo xong trước 17h ngày mai trong 60 phút', 'Nộp báo cáo', None, None, 60, '17:00'),
+])
+def test_vietnamese_temporal_phrases(source, title, date, hour, duration, deadline):
+    result = extract_rules(body(source))
+    fields = result.fields
+    assert fields.title == title
+    assert (fields.date.isoformat() if fields.date else None) == date
+    assert (fields.start_at.strftime('%H:%M') if fields.start_at else None) == hour
+    assert fields.duration_minutes == duration
+    assert (fields.deadline_at.strftime('%H:%M') if fields.deadline_at else None) == deadline
+    assert [w.code for w in result.warnings].count('DATE_REQUIRED') == int(date is None and deadline is None)
+
+
+def test_dst_gap_is_reported_without_guessing():
+    result = extract_rules(body('2026-03-08 họp lúc 2h30 trong 60 phút', zone='America/New_York'))
+    assert result.fields.start_at is None
+    assert 'INVALID_DATE_TIME' in [w.code for w in result.warnings]
+
+
 def test_reference_crosses_local_midnight():
     data = extract_rules(body('Ngày mai học SOA 30 phút', '2026-11-06T18:00:00Z'))
     assert str(data.fields.date) == '2026-11-08'
@@ -77,6 +104,18 @@ def test_provider_fallback(settings, monkeypatch, failure):
     assert 'LLM_FALLBACK' in [w.code for w in result.warnings]
 
 
+def test_provider_total_timeout_leaves_time_for_fallback(settings, monkeypatch):
+    async def slow(*args):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(LLMClient, 'extract', slow)
+    settings.llm_api_key, settings.llm_base_url, settings.llm_model = 'test', 'https://provider.invalid/v1', 'test'
+    settings.llm_timeout_seconds = 0.01
+    result = asyncio.run(extract_request(body('Ngày mai họp trong 60 phút'), settings, 'trace'))
+    assert result.fields.duration_minutes == 60
+    assert 'LLM_FALLBACK' in [w.code for w in result.warnings]
+
+
 def test_llm_http_adapter(settings):
     settings.llm_api_key, settings.llm_base_url, settings.llm_model = 'secret-test', 'https://provider.invalid/v1', 'test'
     def handle(request):
@@ -92,8 +131,15 @@ def test_llm_http_adapter(settings):
     assert result.duration_minutes == 60
 
 
-def test_internal_endpoint_no_key_and_input_aliases(client, settings):
+def test_internal_endpoint_input_aliases(client, settings):
     response = client.post('/internal/v1/extractions', headers={'X-Internal-Api-Key': settings.internal_api_key},
-        json={'prompt': 'Ngày mai học SOA trong 60 phút', 'reference_time': NOW})
+        json={'prompt': 'Ngày mai học SOA trong 60 phút', 'timezone': 'Asia/Ho_Chi_Minh', 'reference_time': NOW})
     assert response.status_code == 200
     assert response.json()['data']['fields']['title'] == 'học SOA'
+
+
+@pytest.mark.parametrize('invalid', [{'timezone': None}, {'now': 1780000000}, {'now': '2026-11-06T10:00:00'}])
+def test_internal_endpoint_requires_timezone_and_rfc3339(client, settings, invalid):
+    response = client.post('/internal/v1/extractions', headers={'X-Internal-Api-Key': settings.internal_api_key},
+        json={'sourceText': 'Họp nhóm', 'timezone': 'Asia/Ho_Chi_Minh', 'now': NOW, **invalid})
+    assert response.status_code == 400

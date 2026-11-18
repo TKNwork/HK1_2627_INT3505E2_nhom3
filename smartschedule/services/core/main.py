@@ -74,9 +74,14 @@ def create_app(settings: Settings | None = None, *, init_database_on_startup: bo
                 if 'HTTPValidationError' in str(responses.get('422', {})):
                     responses.pop('422')
                 op = operation.get('operationId')
-                if op in ('API-03', 'API-06', 'API-12', 'API-13'):
+                if op in ('API-03', 'API-06'):
                     responses['422'] = {'description': 'Lỗi nghiệp vụ (chưa triển khai trong skeleton)',
                         'content': {'application/json': {'schema': {'$ref': '#/components/schemas/ErrorEnvelope'}}}}
+                if op == 'API-13':
+                    for parameter in operation.get('parameters', []):
+                        if parameter['in'] == 'header' and parameter['name'] == 'Idempotency-Key':
+                            parameter['required'] = True
+                            parameter['schema'] = {'type': 'string'}
         app.openapi_schema = schema
         return schema
 

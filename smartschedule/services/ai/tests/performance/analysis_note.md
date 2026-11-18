@@ -16,4 +16,6 @@
 - Ngưỡng SLO đề xuất cho `POST /internal/v1/extractions`:
   - Chế độ quy tắc nội bộ (fallback): `p95 < 150 ms`, tỷ lệ lỗi `< 0.5%`.
   - Chế độ gọi API của LLM bên ngoài trên môi trường thật: `p95 < 4000 ms`, tỷ lệ lỗi `< 1%` (thời gian phản hồi phụ thuộc vào mạng và tốc độ sinh token của nhà cung cấp).
-- Với ngưỡng này, cấu hình `AI_TIMEOUT_SECONDS = 30` ở Core Service đủ an toàn cho các lần gọi LLM. Khi triển khai thật, nhóm có thể giảm timeout xuống 10 đến 15 giây để tránh giữ kết nối quá lâu nếu mạng gặp sự cố.
+- Core đặt ngân sách mặc định `AI_TIMEOUT_SECONDS=30` và AI đặt `LLM_TIMEOUT_SECONDS=20`.
+  Khi điều chỉnh hai giá trị, giữ thời gian cho fallback và đường truyền. Các số liệu
+  ở trên đo trước khi Locust bổ sung kiểm tra nội dung response.

@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
+from fastapi import Request
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -16,13 +17,13 @@ def get_engine(database_url: str) -> Engine:
     return create_engine(database_url, pool_pre_ping=True)
 
 
-def SessionLocal() -> Session:
-    settings = Settings()
+def SessionLocal(settings: Settings | None = None) -> Session:
+    settings = settings or Settings()
     return sessionmaker(bind=get_engine(settings.database_url), expire_on_commit=False)()
 
 
-def get_db() -> Iterator[Session]:
-    with SessionLocal() as session:
+def get_db(request: Request) -> Iterator[Session]:
+    with SessionLocal(request.app.state.settings) as session:
         yield session
 
 
