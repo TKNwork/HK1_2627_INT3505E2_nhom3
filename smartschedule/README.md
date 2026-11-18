@@ -1,3 +1,7 @@
+> Cập nhật UC-09: tạo/lưu/đọc draft và AI extraction đã triển khai. Các ghi chú skeleton
+> bên dưới mô tả nền ban đầu; xem services/core/README.md và services/ai/README.md
+> để chạy phần UC-09. Auth, sửa draft, scheduling và confirm vẫn chưa hoàn thiện.
+
 # SmartSchedule — Skeleton SOA
 
 Skeleton cho nhóm 4 sinh viên: cấu hình, schema, SQLAlchemy models, endpoint fixture và test nền tảng.

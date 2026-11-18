@@ -19,3 +19,5 @@ class Settings(BaseSettings):
     scheduling_timeout_seconds: float = 5.0
     notification_timeout_seconds: float = 5.0
     llm_api_key: str = ''
+    llm_base_url: str = ''
+    llm_model: str = ''

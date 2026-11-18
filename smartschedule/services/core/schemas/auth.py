@@ -19,6 +19,7 @@ class RefreshRequest(ApiModel):
 class User(ApiModel):
     id: str
     email: str
+    role: str = 'user'
 
 
 class RegisterData(ApiModel):

@@ -7,6 +7,9 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+from ..database import get_db
+from ..models import Users
 from ..config import Settings
 from ..schemas.base import ApiModel
 from .errors import AppError, ErrorCode
@@ -17,6 +20,7 @@ hasher = PasswordHasher()
 
 class CurrentUser(ApiModel):
     id: str
+    role: str = 'user'
 
 
 def hash_password(password: str) -> str:
@@ -30,19 +34,20 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str, settings: Settings) -> tuple[str, datetime]:
+def create_access_token(user_id: str, settings: Settings, role: str = 'user') -> tuple[str, datetime]:
     """Tạo access token JWT – hết hạn theo jwt_access_expire_minutes (mặc định 10 phút)."""
     settings.require_auth_secrets()
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(minutes=settings.jwt_access_expire_minutes)
     token = jwt.encode(
-        {'sub': user_id, 'iat': now, 'exp': expires_at, 'type': 'access'},
+        {'sub': user_id, 'role': role, 'iat': now, 'exp': expires_at, 'type': 'access'},
         settings.jwt_secret, algorithm='HS256',
     )
     return token, expires_at
 
 
 def decode_access_token(token: str, settings: Settings) -> CurrentUser:
+    """Xác minh JWT HS256 và lấy user ID, role từ payload; token sai hoặc hết hạn trả 401."""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=['HS256'],
                              options={'require': ['sub', 'iat', 'exp']})
@@ -50,7 +55,8 @@ def decode_access_token(token: str, settings: Settings) -> CurrentUser:
             raise jwt.InvalidTokenError('Missing subject')
         if payload.get('type') != 'access':
             raise jwt.InvalidTokenError('Not an access token')
-        return CurrentUser(id=payload['sub'])
+        role = payload.get('role', 'user')
+        return CurrentUser(id=payload['sub'], role=role)
     except jwt.InvalidTokenError as exc:
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Token không hợp lệ hoặc đã hết hạn.') from exc
 
@@ -70,8 +76,29 @@ def get_refresh_expiry(settings: Settings) -> datetime:
     return datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_expire_days)
 
 
-def get_current_user(request: Request,
-                     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]) -> CurrentUser:
+def get_current_user(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    session: Annotated[Session, Depends(get_db)],
+) -> CurrentUser:
     if credentials is None or credentials.scheme.lower() != 'bearer':
         raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Yêu cầu JWT Bearer.')
-    return decode_access_token(credentials.credentials, request.app.state.settings)
+
+    user = decode_access_token(credentials.credentials, request.app.state.settings)
+    db_user = session.get(Users, user.id)
+    if db_user is None:
+        raise AppError(ErrorCode.UNAUTHORIZED, 401, 'Tài khoản không tồn tại.')
+
+    return CurrentUser(id=db_user.id, role=db_user.role)
+
+
+def require_role(*allowed_roles: str):
+    """Dependency RBAC kiểm tra quyền truy cập theo role."""
+    def role_checker(current_user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
+        if current_user.role not in allowed_roles:
+            raise AppError(ErrorCode.FORBIDDEN, 403, 'Bạn không có quyền thực hiện thao tác này.')
+        return current_user
+    return role_checker
+
+
+require_admin = require_role('admin')
