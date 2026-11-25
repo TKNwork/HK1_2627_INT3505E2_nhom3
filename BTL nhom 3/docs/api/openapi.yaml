@@ -1,0 +1,1648 @@
+openapi: 3.1.1
+info:
+  title: SmartSchedule Core API
+  version: 1.0.0
+  description: 'Hợp đồng API của Core Service cho SmartSchedule.
+
+
+    **Phiên bản** — Đường dẫn dùng /api/v1. Thay đổi tương thích tiếp tục áp dụng trong v1. Thay đổi phá
+    vỡ hợp đồng dùng /api/v2 và công bố thời gian chuyển đổi.
+
+
+    **Phân quyền** — Admin quản lý tài khoản. User sử dụng phòng chat theo tư cách thành viên. Core thực
+    thi kiểm tra quyền trên từng request. JWT không thay thế việc kiểm tra trạng thái tài khoản và phiên.
+
+
+    **Phân trang** — Mặc định 20, tối đa 100. nextCursor là null khi hết trang. Lịch sử chat dùng after.
+    Các danh sách còn lại dùng cursor. Thứ tự được mô tả ở từng operation.
+
+
+    **Lỗi** — Phản hồi JSON theo schema Error. code dùng để xử lý bằng chương trình. message dành cho
+    người đọc. requestId dùng để đối chiếu log. details là thông tin bổ sung nếu có.'
+servers:
+- url: /api/v1
+  description: Đường dẫn tương đối trên máy chủ API
+security:
+- bearerAuth: []
+tags:
+- name: Tài khoản và phiên
+- name: Quản trị
+- name: Phòng chat
+- name: Phân tích AI
+- name: Lịch nhắc
+paths:
+  /users:
+    post:
+      operationId: registerUser
+      tags:
+      - Tài khoản và phiên
+      summary: Đăng ký tài khoản
+      description: Công khai. Tài khoản mới có vai trò user và trạng thái active.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - displayName
+              - email
+              - password
+              properties:
+                displayName: &id004
+                  type: string
+                  minLength: 1
+                email: &id001
+                  type: string
+                  format: email
+                password: &id002
+                  type: string
+                  format: password
+                  minLength: 1
+              additionalProperties: false
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: Email đã tồn tại.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: CONFLICT
+                message: Email đã tồn tại.
+                requestId: req-01HZX9
+        '422':
+          description: Dữ liệu đầu vào không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Dữ liệu đầu vào không hợp lệ.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /sessions:
+    post:
+      operationId: createSession
+      tags:
+      - Tài khoản và phiên
+      summary: Đăng nhập
+      description: Công khai.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              - password
+              properties:
+                email: *id001
+                password: *id002
+              additionalProperties: false
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          headers:
+            Set-Cookie: &id003
+              description: Thiết lập hoặc xóa cookie refreshToken tùy thao tác.
+              schema:
+                type: string
+        '401':
+          description: Email hoặc mật khẩu không đúng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Email hoặc mật khẩu không đúng.
+                requestId: req-01HZX9
+        '403':
+          description: Tài khoản đã bị khóa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Tài khoản đã bị khóa.
+                requestId: req-01HZX9
+        '422':
+          description: Dữ liệu đầu vào không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Dữ liệu đầu vào không hợp lệ.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /sessions/refresh:
+    post:
+      operationId: refreshSession
+      tags:
+      - Tài khoản và phiên
+      summary: Làm mới access token
+      description: Yêu cầu cookie refreshToken hợp lệ. Core kiểm tra phiên, trạng thái tài khoản và xoay
+        vòng refresh token.
+      security:
+      - refreshCookie: []
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          headers:
+            Set-Cookie: *id003
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /me:
+    get:
+      operationId: getMe
+      tags:
+      - Tài khoản và phiên
+      summary: Xem tài khoản hiện tại
+      description: Yêu cầu phiên hợp lệ.
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /sessions/current:
+    delete:
+      operationId: deleteCurrentSession
+      tags:
+      - Tài khoản và phiên
+      summary: Đăng xuất phiên hiện tại
+      description: Yêu cầu cookie refreshToken hợp lệ. Thu hồi phiên và xóa cookie.
+      security:
+      - refreshCookie: []
+      responses:
+        '204':
+          description: Đã kết thúc phiên.
+          headers:
+            Set-Cookie: *id003
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags:
+      - Quản trị
+      summary: Xem danh sách tài khoản
+      description: Chỉ vai trò admin. Thứ tự cố định theo thời điểm tạo giảm dần rồi ID tăng dần.
+      parameters:
+      - name: status
+        in: query
+        required: false
+        description: Lọc theo trạng thái tài khoản.
+        schema: &id005
+          type: string
+          enum:
+          - active
+          - locked
+      - &id006
+        name: cursor
+        in: query
+        required: false
+        description: Dùng nextCursor từ trang trước. Giữ nguyên bộ lọc.
+        schema: *id004
+      - &id007
+        name: limit
+        in: query
+        required: false
+        description: Số phần tử tối đa trên trang.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400':
+          description: Tham số truy vấn không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INVALID_QUERY
+                message: Tham số truy vấn không hợp lệ.
+                requestId: req-01HZX9
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Tài khoản không có quyền thực hiện thao tác.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Tài khoản không có quyền thực hiện thao tác.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /admin/users/{userId}:
+    patch:
+      operationId: updateUserStatus
+      tags:
+      - Quản trị
+      summary: Khóa hoặc mở khóa tài khoản
+      description: Chỉ vai trò admin. Khi khóa tài khoản, Core thu hồi các phiên và từ chối token của
+        các phiên đã thu hồi.
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: &id008
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - status
+              properties:
+                status: *id005
+              additionalProperties: false
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Tài khoản không có quyền thực hiện thao tác.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Tài khoản không có quyền thực hiện thao tác.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy tài nguyên trong phạm vi yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy tài nguyên trong phạm vi yêu cầu.
+                requestId: req-01HZX9
+        '422':
+          description: Dữ liệu đầu vào không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Dữ liệu đầu vào không hợp lệ.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups:
+    post:
+      operationId: createGroup
+      tags:
+      - Phòng chat
+      summary: Tạo phòng chat
+      description: Chỉ vai trò user. Người tạo có vai trò owner. Chỉ owner nhận inviteCode trong phản
+        hồi Group.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              properties:
+                name: *id004
+              additionalProperties: false
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Tài khoản không có quyền thực hiện thao tác.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Tài khoản không có quyền thực hiện thao tác.
+                requestId: req-01HZX9
+        '422':
+          description: Dữ liệu đầu vào không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Dữ liệu đầu vào không hợp lệ.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /memberships:
+    post:
+      operationId: joinGroup
+      tags:
+      - Phòng chat
+      summary: Tham gia phòng bằng mã mời
+      description: Chỉ vai trò user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - inviteCode
+              properties:
+                inviteCode: *id004
+              additionalProperties: false
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Tài khoản không có quyền thực hiện thao tác.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Tài khoản không có quyền thực hiện thao tác.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy mã mời.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy mã mời.
+                requestId: req-01HZX9
+        '409':
+          description: Tài khoản đã tham gia phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: CONFLICT
+                message: Tài khoản đã tham gia phòng.
+                requestId: req-01HZX9
+        '422':
+          description: Dữ liệu đầu vào không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Dữ liệu đầu vào không hợp lệ.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /me/groups:
+    get:
+      operationId: listMyGroups
+      tags:
+      - Phòng chat
+      summary: Xem các phòng đã tham gia
+      description: Chỉ vai trò user. Thứ tự cố định theo thời điểm tham gia giảm dần rồi ID phòng tăng
+        dần.
+      parameters:
+      - *id006
+      - *id007
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupPage'
+        '400':
+          description: Tham số truy vấn không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INVALID_QUERY
+                message: Tham số truy vấn không hợp lệ.
+                requestId: req-01HZX9
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Tài khoản không có quyền thực hiện thao tác.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Tài khoản không có quyền thực hiện thao tác.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups/{groupId}:
+    get:
+      operationId: getGroup
+      tags:
+      - Phòng chat
+      summary: Xem thông tin phòng
+      description: Chỉ user thuộc phòng.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Cần vai trò user và tư cách thành viên trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Cần vai trò user và tư cách thành viên trong phòng.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy phòng.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups/{groupId}/memberships:
+    get:
+      operationId: listGroupMembers
+      tags:
+      - Phòng chat
+      summary: Xem thành viên phòng
+      description: Chỉ user thuộc phòng. Trả thêm displayName cho từng thành viên. Thứ tự theo thời điểm
+        tham gia rồi ID tăng dần.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      - *id006
+      - *id007
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPage'
+        '400':
+          description: Tham số truy vấn không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INVALID_QUERY
+                message: Tham số truy vấn không hợp lệ.
+                requestId: req-01HZX9
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Cần vai trò user và tư cách thành viên trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Cần vai trò user và tư cách thành viên trong phòng.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy phòng.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups/{groupId}/messages:
+    post:
+      operationId: createMessage
+      tags:
+      - Phòng chat
+      summary: Gửi hoặc trả lời tin nhắn
+      description: Chỉ user thuộc phòng.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - text
+              properties:
+                text: *id004
+                replyToId: *id008
+              additionalProperties: false
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Cần vai trò user và tư cách thành viên trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Cần vai trò user và tư cách thành viên trong phòng.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy phòng.
+                requestId: req-01HZX9
+        '422':
+          description: Nội dung không hợp lệ hoặc tin được trả lời không thuộc phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Nội dung không hợp lệ hoặc tin được trả lời không thuộc phòng.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+    get:
+      operationId: listMessages
+      tags:
+      - Phòng chat
+      summary: Đọc lịch sử hội thoại
+      description: Chỉ user thuộc phòng. Thứ tự theo seq tăng dần. Admin không có quyền truy cập hội thoại.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      - name: after
+        in: query
+        required: false
+        description: Dùng nextCursor từ trang trước. Bỏ qua để đọc từ đầu lịch sử.
+        schema: *id004
+      - *id007
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePage'
+        '400':
+          description: Tham số truy vấn không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INVALID_QUERY
+                message: Tham số truy vấn không hợp lệ.
+                requestId: req-01HZX9
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Cần vai trò user và tư cách thành viên trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Cần vai trò user và tư cách thành viên trong phòng.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy phòng.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups/{groupId}/analysis-runs:
+    post:
+      operationId: createAnalysisRun
+      tags:
+      - Phân tích AI
+      summary: Gọi AI phân tích hội thoại
+      description: Chỉ user thuộc phòng. triggerMessageId tham chiếu tin gọi @AI. focusMessageId chỉ chủ
+        đề cần phân tích nếu phòng bàn nhiều việc.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: Dùng lại cùng khóa khi gửi lại cùng payload của cùng tài khoản và phòng.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - triggerMessageId
+              properties:
+                triggerMessageId: *id008
+                focusMessageId: *id008
+              additionalProperties: false
+      responses:
+        '202':
+          description: Đã tiếp nhận để xử lý bất đồng bộ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisAccepted'
+          headers:
+            Location:
+              description: Đường dẫn xem lần phân tích.
+              schema:
+                type: string
+                format: uri-reference
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Cần vai trò user và tư cách thành viên trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Cần vai trò user và tư cách thành viên trong phòng.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy phòng.
+                requestId: req-01HZX9
+        '409':
+          description: Cùng Idempotency-Key nhưng payload khác.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: CONFLICT
+                message: Cùng Idempotency-Key nhưng payload khác.
+                requestId: req-01HZX9
+        '422':
+          description: Thiếu khóa idempotency hoặc tin tham chiếu không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Thiếu khóa idempotency hoặc tin tham chiếu không hợp lệ.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups/{groupId}/analysis-runs/{runId}:
+    get:
+      operationId: getAnalysisRun
+      tags:
+      - Phân tích AI
+      summary: Xem kết quả phân tích
+      description: Chỉ user thuộc phòng. Admin không có quyền truy cập kết quả phân tích. Khi còn bất
+        đồng, API trả 200 với outcome needs_clarification.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      - name: runId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisRun'
+              examples:
+                scheduled:
+                  summary: Nhóm đã chốt, lịch được lưu
+                  value:
+                    id: 11111111-1111-4111-8111-111111111111
+                    status: completed
+                    evidenceMessageIds: &id009
+                    - 22222222-2222-4222-8222-222222222222
+                    errorCode: null
+                    outcome: scheduled
+                    reminderId: 33333333-3333-4333-8333-333333333333
+                    question: null
+                needsClarification:
+                  summary: Nhóm chưa chốt giờ
+                  value:
+                    id: 11111111-1111-4111-8111-111111111111
+                    status: completed
+                    evidenceMessageIds: *id009
+                    errorCode: null
+                    outcome: needs_clarification
+                    reminderId: null
+                    question: Nhóm chọn họp 8h30 hay 10h?
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Cần vai trò user và tư cách thành viên trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Cần vai trò user và tư cách thành viên trong phòng.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy lần phân tích trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy lần phân tích trong phòng.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups/{groupId}/reminders:
+    get:
+      operationId: listReminders
+      tags:
+      - Lịch nhắc
+      summary: Xem lịch nhắc của phòng
+      description: Chỉ user thuộc phòng. Thứ tự cố định theo startsAt rồi id tăng dần. Nếu có cả from
+        và to, from phải nhỏ hơn to.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      - name: status
+        in: query
+        required: false
+        description: Lọc theo trạng thái lịch.
+        schema: &id014
+          type: string
+          enum:
+          - active
+          - cancelled
+      - name: from
+        in: query
+        required: false
+        description: Giới hạn dưới của startsAt, có bao gồm.
+        schema: &id010
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        description: Giới hạn trên của startsAt, không bao gồm.
+        schema: *id010
+      - *id006
+      - *id007
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderPage'
+        '400':
+          description: Tham số truy vấn không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INVALID_QUERY
+                message: Tham số truy vấn không hợp lệ.
+                requestId: req-01HZX9
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Cần vai trò user và tư cách thành viên trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Cần vai trò user và tư cách thành viên trong phòng.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy phòng.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+  /groups/{groupId}/reminders/{reminderId}:
+    patch:
+      operationId: updateReminder
+      tags:
+      - Lịch nhắc
+      summary: Đổi giờ hoặc hủy lịch nhắc
+      description: Chỉ user có vai trò owner trong phòng. Tăng phiên bản và phát sự kiện để Notification
+        Service điều chỉnh lượt gửi.
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      - name: reminderId
+        in: path
+        required: true
+        description: ID tài nguyên.
+        schema: *id008
+      - name: If-Match
+        in: header
+        required: true
+        description: ETag mạnh của phiên bản lịch, ví dụ "v2". Có thể tạo từ trường version trong danh
+          sách lịch.
+        schema:
+          type: string
+          pattern: ^"v[1-9][0-9]*"$
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required:
+                - startsAt
+                properties:
+                  startsAt: *id010
+                additionalProperties: false
+              - type: object
+                required:
+                - status
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - cancelled
+                additionalProperties: false
+      responses:
+        '200':
+          description: Thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+          headers:
+            ETag:
+              description: ETag mạnh của phiên bản lịch sau cập nhật.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Chỉ chủ phòng được đổi giờ hoặc hủy lịch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Chỉ chủ phòng được đổi giờ hoặc hủy lịch.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy lịch nhắc trong phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy lịch nhắc trong phòng.
+                requestId: req-01HZX9
+        '412':
+          description: Phiên bản lịch đã thay đổi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VERSION_MISMATCH
+                message: Phiên bản lịch đã thay đổi.
+                requestId: req-01HZX9
+        '422':
+          description: Dữ liệu đầu vào không hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Dữ liệu đầu vào không hợp lệ.
+                requestId: req-01HZX9
+        '428':
+          description: Yêu cầu cần header If-Match.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: PRECONDITION_REQUIRED
+                message: Yêu cầu cần header If-Match.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token của phiên đang hiệu lực.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refreshToken
+      description: Cookie HttpOnly do trình duyệt lưu từ phản hồi đăng nhập hoặc refresh.
+  schemas:
+    User:
+      type: object
+      required:
+      - id
+      - displayName
+      - email
+      - systemRole
+      - status
+      properties:
+        id: *id008
+        displayName: *id004
+        email:
+          type: string
+          format: email
+        systemRole:
+          type: string
+          enum:
+          - user
+          - admin
+        status: *id005
+      additionalProperties: false
+    Session:
+      type: object
+      required:
+      - accessToken
+      - tokenType
+      - expiresIn
+      - user
+      properties:
+        accessToken: *id004
+        tokenType:
+          type: string
+          enum:
+          - Bearer
+        expiresIn: &id012
+          type: integer
+          minimum: 1
+        user:
+          $ref: '#/components/schemas/User'
+      additionalProperties: false
+    Group:
+      type: object
+      required:
+      - id
+      - name
+      - myRole
+      properties:
+        id: *id008
+        name: *id004
+        myRole: &id011
+          type: string
+          enum:
+          - owner
+          - member
+        inviteCode: *id004
+      additionalProperties: false
+    Membership:
+      type: object
+      required:
+      - id
+      - groupId
+      - userId
+      - role
+      - joinedAt
+      properties:
+        id: *id008
+        groupId: *id008
+        userId: *id008
+        role: *id011
+        joinedAt: *id010
+        displayName: *id004
+      additionalProperties: false
+    Message:
+      type: object
+      required:
+      - id
+      - groupId
+      - senderType
+      - senderId
+      - text
+      - replyToId
+      - seq
+      - sentAt
+      properties:
+        id: *id008
+        groupId: *id008
+        senderType:
+          type: string
+          enum:
+          - user
+          - ai
+        senderId:
+          anyOf:
+          - *id008
+          - type: 'null'
+        text: *id004
+        replyToId:
+          anyOf:
+          - *id008
+          - type: 'null'
+        seq: *id012
+        sentAt: *id010
+      additionalProperties: false
+    AnalysisAccepted:
+      type: object
+      required:
+      - id
+      - status
+      properties:
+        id: *id008
+        status: &id013
+          type: string
+          enum:
+          - queued
+          - processing
+          - completed
+          - failed
+      additionalProperties: false
+    AnalysisRun:
+      type: object
+      required:
+      - id
+      - status
+      - outcome
+      - evidenceMessageIds
+      - reminderId
+      - question
+      - errorCode
+      properties:
+        id: *id008
+        status: *id013
+        outcome:
+          anyOf:
+          - type: string
+            enum:
+            - scheduled
+            - needs_clarification
+            - no_action
+          - type: 'null'
+        evidenceMessageIds:
+          type: array
+          items: *id008
+        reminderId:
+          anyOf:
+          - *id008
+          - type: 'null'
+        question:
+          anyOf:
+          - type: string
+          - type: 'null'
+        errorCode:
+          anyOf:
+          - type: string
+          - type: 'null'
+      additionalProperties: false
+    Reminder:
+      type: object
+      required:
+      - id
+      - groupId
+      - title
+      - startsAt
+      - timezone
+      - location
+      - leadMinutes
+      - status
+      - version
+      properties:
+        id: *id008
+        groupId: *id008
+        title: *id004
+        startsAt: *id010
+        timezone: *id004
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+        leadMinutes:
+          type: integer
+          minimum: 0
+        status: *id014
+        version: *id012
+      additionalProperties: false
+    Error:
+      type: object
+      required:
+      - code
+      - message
+      - requestId
+      properties:
+        code: *id004
+        message: *id004
+        requestId: *id004
+        details:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    UserPage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        nextCursor:
+          anyOf:
+          - *id004
+          - type: 'null'
+      additionalProperties: false
+    GroupPage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Group'
+        nextCursor:
+          anyOf:
+          - *id004
+          - type: 'null'
+      additionalProperties: false
+    MembershipPage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Membership'
+        nextCursor:
+          anyOf:
+          - *id004
+          - type: 'null'
+      additionalProperties: false
+    MessagePage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        nextCursor:
+          anyOf:
+          - *id004
+          - type: 'null'
+      additionalProperties: false
+    ReminderPage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reminder'
+        nextCursor:
+          anyOf:
+          - *id004
+          - type: 'null'
+      additionalProperties: false
