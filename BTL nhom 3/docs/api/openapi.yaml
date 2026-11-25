@@ -784,6 +784,106 @@ paths:
                 code: INTERNAL_ERROR
                 message: Core Service gặp lỗi khi xử lý yêu cầu.
                 requestId: req-01HZX9
+    post:
+      operationId: addGroupMember
+      tags:
+      - Phòng chat
+      summary: Chủ phòng thêm thành viên bằng ID
+      description: Người gọi phải có vai trò owner trong phòng. Core tạo duy nhất một Membership cho mỗi cặp groupId và userId với role member. Thành viên được thêm có thể vào phòng mà không cần mã mời.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: *id008
+        example: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - userId
+              properties:
+                userId: *id008
+              additionalProperties: false
+            example:
+              userId: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+      responses:
+        '201':
+          description: Đã thêm thành viên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+              example:
+                id: cccccccc-cccc-4ccc-8ccc-cccccccccccc
+                groupId: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+                userId: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+                role: member
+                joinedAt: '2026-11-25T02:00:00Z'
+        '401':
+          description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
+                requestId: req-01HZX9
+        '403':
+          description: Chỉ chủ phòng có quyền thêm thành viên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: FORBIDDEN
+                message: Chỉ chủ phòng có quyền thêm thành viên.
+                requestId: req-01HZX9
+        '404':
+          description: Không tìm thấy phòng hoặc tài khoản đích.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: NOT_FOUND
+                message: Không tìm thấy phòng hoặc tài khoản đích.
+                requestId: req-01HZX9
+        '409':
+          description: Tài khoản đã là thành viên của phòng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: CONFLICT
+                message: Tài khoản đã là thành viên của phòng.
+                requestId: req-01HZX9
+        '422':
+          description: Body thiếu userId hoặc userId không đúng định dạng UUID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: VALIDATION_ERROR
+                message: Body thiếu userId hoặc userId không đúng định dạng UUID.
+                requestId: req-01HZX9
+        '500':
+          description: Core Service gặp lỗi khi xử lý yêu cầu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Core Service gặp lỗi khi xử lý yêu cầu.
+                requestId: req-01HZX9
   /groups/{groupId}/messages:
     post:
       operationId: createMessage
@@ -809,6 +909,8 @@ paths:
                 text: *id004
                 replyToId: *id008
               additionalProperties: false
+            example:
+              text: '@AI nhắc cả nhóm họp lúc 10h, trước 15 phút.'
       responses:
         '201':
           description: Tạo thành công.
@@ -816,6 +918,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Message'
+              example:
+                id: 22222222-2222-4222-8222-222222222222
+                groupId: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+                senderType: user
+                senderId: dddddddd-dddd-4ddd-8ddd-dddddddddddd
+                text: '@AI nhắc cả nhóm họp lúc 10h, trước 15 phút.'
+                replyToId: null
+                seq: 4
+                sentAt: '2026-11-25T02:01:00Z'
         '401':
           description: Thông tin xác thực không hợp lệ hoặc phiên đã hết hiệu lực.
           content:
@@ -975,6 +1086,8 @@ paths:
                 triggerMessageId: *id008
                 focusMessageId: *id008
               additionalProperties: false
+            example:
+              triggerMessageId: 22222222-2222-4222-8222-222222222222
       responses:
         '202':
           description: Đã tiếp nhận để xử lý bất đồng bộ.
@@ -982,9 +1095,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnalysisAccepted'
+              example:
+                id: 11111111-1111-4111-8111-111111111111
+                status: queued
           headers:
             Location:
               description: Đường dẫn xem lần phân tích.
+              example: /api/v1/groups/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/analysis-runs/11111111-1111-4111-8111-111111111111
               schema:
                 type: string
                 format: uri-reference

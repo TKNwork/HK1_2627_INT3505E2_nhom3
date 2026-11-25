@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="./swagger-ui/swagger-ui.css">
 </head>
 <body>
+  <label for="analysis-example">Kịch bản AI</label>
+  <select id="analysis-example">
+    <option value="scheduled">Đã chốt giờ (scheduled)</option>
+    <option value="needsClarification">Cần làm rõ (needs_clarification)</option>
+  </select>
   <div id="swagger-ui"></div>
   <script src="./swagger-ui/swagger-ui-bundle.js"></script>
   <script>
@@ -15,7 +20,14 @@
       dom_id: "#swagger-ui",
       deepLinking: true,
       docExpansion: "list",
-      supportedSubmitMethods: [],
+      supportedSubmitMethods: ["get", "post", "patch", "delete"],
+      requestInterceptor(request) {
+        const path = new URL(request.url, window.location.href).pathname;
+        if (request.method === "GET" && /^\/api\/v1\/groups\/[^/]+\/analysis-runs\/[^/]+$/.test(path)) {
+          request.headers.Prefer = "example=" + document.getElementById("analysis-example").value;
+        }
+        return request;
+      },
       validatorUrl: null
     });
   </script>
